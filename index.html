@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <link rel="stylesheet" href="chess.css">
+</head>
+<body>
+    <div class="game-container">
+        <header>
+            <h1>♟️ Chess Game</h1>
+            <div class="game-info">
+                <div class="turn-indicator">
+                    <span id="current-turn">White to move</span>
+                </div>
+                <div class="game-status" id="game-status"></div>
+            </div>
+        </header>
+        
+        <div class="chess-board-container">
+            <div class="board-labels left-labels">
+                <div class="label">8</div>
+                <div class="label">7</div>
+                <div class="label">6</div>
+                <div class="label">5</div>
+                <div class="label">4</div>
+                <div class="label">3</div>
+                <div class="label">2</div>
+                <div class="label">1</div>
+            </div>
+            
+            <div class="board-wrapper">
+                <div class="bottom-labels">
+                    <div class="label">a</div>
+                    <div class="label">b</div>
+                    <div class="label">c</div>
+                    <div class="label">d</div>
+                    <div class="label">e</div>
+                    <div class="label">f</div>
+                    <div class="label">g</div>
+                    <div class="label">h</div>
+                </div>
+                <div id="chess-board" class="chess-board"></div>
+            </div>
+        </div>
+        
+        <div class="game-controls">
+            <button id="reset-btn" class="btn">New Game</button>
+            <button id="flip-btn" class="btn">Flip Board</button>
+        </div>
+        
+        <div class="move-history">
+            <h3>Move History</h3>
+            <div id="move-list"></div>
+        </div>
+    </div>
+    
+    <script src="chess.js"></script>
+</body>
+</html>
