@@ -209,11 +209,110 @@ class ChessGame {
         const piece = this.board[fromRow][fromCol];
         const targetPiece = this.board[toRow][toCol];
         
+        if (!piece) return false;
+        
         if (targetPiece && targetPiece.color === piece.color) {
             return false;
         }
         
-        // Basic move validation (simplified)
+        // Validate bounds
+        if (fromRow < 0 || fromRow >= 8 || fromCol < 0 || fromCol >= 8 ||
+            toRow < 0 || toRow >= 8 || toCol < 0 || toCol >= 8) {
+            return false;
+        }
+        
+        // Can't move to the same square
+        if (fromRow === toRow && fromCol === toCol) {
+            return false;
+        }
+        
+        const rowDiff = Math.abs(toRow - fromRow);
+        const colDiff = Math.abs(toCol - fromCol);
+        
+        // Basic move validation based on piece type
+        switch (piece.type) {
+            case 'pawn':
+                const direction = piece.color === 'white' ? -1 : 1;
+                const startRow = piece.color === 'white' ? 6 : 1;
+                
+                // Forward move
+                if (fromCol === toCol) {
+                    if (targetPiece) {
+                        return false; // Can't capture forward
+                    }
+                    // One square forward
+                    if (toRow === fromRow + direction) {
+                        return true;
+                    }
+                    // Two squares forward from start position
+                    if (fromRow === startRow && toRow === fromRow + (2 * direction) && !this.board[fromRow + direction][fromCol]) {
+                        return true;
+                    }
+                    return false;
+                }
+                // Diagonal capture
+                if (colDiff === 1 && toRow === fromRow + direction && targetPiece && targetPiece.color !== piece.color) {
+                    return true;
+                }
+                return false;
+                
+            case 'rook':
+                // Rook moves horizontally or vertically
+                if ((fromRow === toRow || fromCol === toCol) && this.isPathClear(fromRow, fromCol, toRow, toCol)) {
+                    return true;
+                }
+                return false;
+                
+            case 'knight':
+                // Knight moves in L-shape: (2,1) or (1,2)
+                if ((rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2)) {
+                    return true;
+                }
+                return false;
+                
+            case 'bishop':
+                // Bishop moves diagonally
+                if (rowDiff === colDiff && this.isPathClear(fromRow, fromCol, toRow, toCol)) {
+                    return true;
+                }
+                return false;
+                
+            case 'queen':
+                // Queen moves like rook or bishop
+                const isRookMove = (fromRow === toRow || fromCol === toCol);
+                const isBishopMove = (rowDiff === colDiff);
+                if ((isRookMove || isBishopMove) && this.isPathClear(fromRow, fromCol, toRow, toCol)) {
+                    return true;
+                }
+                return false;
+                
+            case 'king':
+                // King moves one square in any direction
+                if (rowDiff <= 1 && colDiff <= 1) {
+                    return true;
+                }
+                return false;
+                
+            default:
+                return false;
+        }
+    }
+    
+    isPathClear(fromRow, fromCol, toRow, toCol) {
+        const rowStep = toRow > fromRow ? 1 : (toRow < fromRow ? -1 : 0);
+        const colStep = toCol > fromCol ? 1 : (toCol < fromCol ? -1 : 0);
+        
+        let row = fromRow + rowStep;
+        let col = fromCol + colStep;
+        
+        while (row !== toRow || col !== toCol) {
+            if (this.board[row][col] !== null) {
+                return false;
+            }
+            row += rowStep;
+            col += colStep;
+        }
+        
         return true;
     }
     
