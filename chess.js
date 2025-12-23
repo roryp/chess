@@ -90,21 +90,9 @@ class ChessGame {
     }
     
     init() {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:92',message:'init() called',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         this.createBoard();
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:95',message:'createBoard() completed',data:{boardLength:this.board.length,boardRowLength:this.board[0]?this.board[0].length:0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         this.setupPieces();
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:97',message:'setupPieces() completed',data:{pieceCount:this.board.flat().filter(p=>p!==null).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         this.renderBoard();
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:99',message:'renderBoard() completed',data:{squareCount:document.querySelectorAll('#chess-board .square').length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         this.setupEventListeners();
         this.updateTurnIndicator();
     }
@@ -152,13 +140,7 @@ class ChessGame {
     
     renderBoard() {
         const boardElement = document.getElementById('chess-board');
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:142',message:'renderBoard() entry',data:{boardElementFound:!!boardElement,boardElementId:boardElement?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         if (!boardElement) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:145',message:'Board element not found',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
             return;
         }
         boardElement.innerHTML = '';
@@ -184,22 +166,13 @@ class ChessGame {
                     pieceElement.className = `piece ${piece.color} ${piece.type}`;
                     const symbol = this.getPieceSymbol(piece);
                     pieceElement.textContent = symbol;
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:182',message:'Rendering piece',data:{row,col,pieceType:piece.type,pieceColor:piece.color,symbol},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-                    // #endregion
                     square.appendChild(pieceElement);
                 }
                 
                 square.addEventListener('click', () => this.handleSquareClick(row, col));
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:169',message:'Square created and event listener attached',data:{row,col,hasPiece:!!piece,pieceType:piece?.type,pieceColor:piece?.color},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-                // #endregion
                 boardElement.appendChild(square);
             }
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:172',message:'renderBoard() loop completed',data:{totalSquares:boardElement.children.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
     }
     
     getPieceSymbol(piece) {
@@ -211,30 +184,15 @@ class ChessGame {
     }
     
     handleSquareClick(row, col) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:182',message:'Square clicked',data:{row,col,isReplaying:this.isReplaying,currentTurn:this.currentTurn},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
         if (this.isReplaying) return;
         
         const piece = this.board[row][col];
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:186',message:'Piece at clicked square',data:{hasPiece:!!piece,pieceType:piece?.type,pieceColor:piece?.color},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         
         if (this.selectedSquare) {
             const selectedPiece = this.board[this.selectedSquare.row][this.selectedSquare.col];
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:220',message:'Selected square exists',data:{selectedRow:this.selectedSquare.row,selectedCol:this.selectedSquare.col,hasSelectedPiece:!!selectedPiece,selectedPieceColor:selectedPiece?.color,currentTurn:this.currentTurn},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
             if (selectedPiece && selectedPiece.color === this.currentTurn) {
                 const isValid = this.isValidMove(this.selectedSquare.row, this.selectedSquare.col, row, col);
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:223',message:'isValidMove check',data:{fromRow:this.selectedSquare.row,fromCol:this.selectedSquare.col,toRow:row,toCol:col,isValid},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-                // #endregion
                 if (isValid) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:224',message:'Making move',data:{fromRow:this.selectedSquare.row,fromCol:this.selectedSquare.col,toRow:row,toCol:col},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-                    // #endregion
                     this.makeMove(this.selectedSquare.row, this.selectedSquare.col, row, col);
                     this.selectedSquare = null;
                     this.renderBoard();
@@ -244,15 +202,9 @@ class ChessGame {
         }
         
         if (piece && piece.color === this.currentTurn) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:232',message:'Selecting piece',data:{row,col,pieceType:piece.type,pieceColor:piece.color},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
             this.selectedSquare = { row, col };
             this.renderBoard();
         } else {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:236',message:'Clearing selection',data:{row,col,hasPiece:!!piece,pieceColor:piece?.color,currentTurn:this.currentTurn},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-            // #endregion
             this.selectedSquare = null;
             this.renderBoard();
         }
@@ -375,9 +327,6 @@ class ChessGame {
         
         this.board[toRow][toCol] = piece;
         this.board[fromRow][fromCol] = null;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:373',message:'Board state after move',data:{fromRow,fromCol,toRow,toCol,fromSquarePiece:this.board[fromRow][fromCol],toSquarePiece:this.board[toRow][toCol]?.type,toSquareColor:this.board[toRow][toCol]?.color},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-        // #endregion
         
         const moveNotation = this.getMoveNotation(fromRow, fromCol, toRow, toCol);
         this.moveHistory.push(moveNotation);
@@ -547,9 +496,6 @@ class ChessGame {
 
 // Initialize game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/1a33e1e2-564e-4c0c-a7cc-41adc37f4f33',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chess.js:493',message:'DOMContentLoaded fired',data:{boardElementExists:!!document.getElementById('chess-board')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     const game = new ChessGame();
     
     // Create famous games selector
