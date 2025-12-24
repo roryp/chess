@@ -121,7 +121,7 @@ The main game board with all pieces in starting position:
 ### AI Player Settings
 Configure Human vs AI, AI vs Human, or AI vs AI matches:
 
-![AI settings panel](assets/chess-board.png)
+![AI settings panel](assets/chess-ai-vs-ai.png)
 
 ### Famous Game Replay
 Watch historic games like "The Immortal Game" with play controls:
