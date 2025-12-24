@@ -48,97 +48,494 @@ class FoundryChessAI {
         if (validMoves.length === 0) return null;
         if (validMoves.length === 1) return validMoves[0];
         
-        // SMART MOVE SELECTION: Prioritize captures using code logic (LLM is not good at chess)
-        const bestCapture = this.findBestCapture(game, validMoves, color);
-        if (bestCapture) {
-            console.log(`AI capturing: ${bestCapture.notation} takes ${bestCapture.piece} (${bestCapture.value} pts)`);
-            return bestCapture.move;
+        // Use the comprehensive rules engine
+        const bestMove = this.evaluateWithRulesEngine(game, validMoves, color);
+        if (bestMove) {
+            return bestMove.move;
         }
         
-        // Check for check-giving moves
-        const checkMove = this.findCheckMove(game, validMoves, color);
-        if (checkMove) {
-            console.log(`AI giving check: ${checkMove.notation}`);
-            return checkMove.move;
+        // Fallback to random if rules engine returns nothing
+        return this.selectRandomMove(validMoves);
+    }
+    
+    // ==================== RULES ENGINE ====================
+    // Comprehensive chess strategy engine that adapts to board state
+    
+    evaluateWithRulesEngine(game, validMoves, color) {
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        
+        // Analyze board state
+        const boardState = this.analyzeBoardState(game, color);
+        console.log(`Board Analysis: Material=${boardState.materialAdvantage}, Phase=${boardState.gamePhase}, King Safety=${boardState.kingSafety}`);
+        
+        // Score all moves
+        const scoredMoves = validMoves.map(move => ({
+            move,
+            score: this.scoreMove(game, move, color, boardState),
+            notation: this.moveToNotation(move)
+        }));
+        
+        // Sort by score (highest first)
+        scoredMoves.sort((a, b) => b.score - a.score);
+        
+        // Log top moves
+        const topMoves = scoredMoves.slice(0, 3);
+        console.log(`Top moves: ${topMoves.map(m => `${m.notation}(${m.score})`).join(', ')}`);
+        
+        // Return best move
+        if (scoredMoves.length > 0 && scoredMoves[0].score > -Infinity) {
+            console.log(`Rules Engine selected: ${scoredMoves[0].notation} (score: ${scoredMoves[0].score})`);
+            return scoredMoves[0];
         }
         
-        // If API was previously unavailable, use random fallback
-        if (!this.available) {
-            return this.selectRandomMove(validMoves);
+        return null;
+    }
+    
+    analyzeBoardState(game, color) {
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        const pieceValues = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 0 };
+        
+        let myMaterial = 0;
+        let opponentMaterial = 0;
+        let myPieces = [];
+        let opponentPieces = [];
+        let myKingPos = null;
+        let opponentKingPos = null;
+        
+        // Count material and find pieces
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = game.board[row][col];
+                if (piece) {
+                    const value = pieceValues[piece.type];
+                    if (piece.color === color) {
+                        myMaterial += value;
+                        myPieces.push({ piece, row, col });
+                        if (piece.type === 'king') myKingPos = { row, col };
+                    } else {
+                        opponentMaterial += value;
+                        opponentPieces.push({ piece, row, col });
+                        if (piece.type === 'king') opponentKingPos = { row, col };
+                    }
+                }
+            }
         }
         
-        const boardStr = this.formatBoard(game.board);
-        const movesStr = this.formatMoveList(validMoves);
-        const captureInfo = this.analyzeCapturesAndThreats(game, validMoves, color);
+        // Determine game phase
+        const totalMaterial = myMaterial + opponentMaterial;
+        let gamePhase;
+        if (totalMaterial >= 60) gamePhase = 'opening';
+        else if (totalMaterial >= 30) gamePhase = 'middlegame';
+        else gamePhase = 'endgame';
         
-        // Build comprehensive prompt with strategic guidance
-        const prompt = `You are a chess grandmaster playing as ${color.toUpperCase()}.
-
-BOARD (uppercase=White, lowercase=Black, .=empty):
-${boardStr}
-
-PIECE VALUES: Queen=9, Rook=5, Bishop=3, Knight=3, Pawn=1
-
-YOUR COLOR: ${color.toUpperCase()}
-${captureInfo}
-
-ALL LEGAL MOVES: ${movesStr}
-
-STRATEGY PRIORITY:
-1. CAPTURE the highest value piece if possible
-2. Avoid leaving your pieces undefended
-3. Control the center (d4,d5,e4,e5)
-4. Develop knights and bishops early
-
-Pick the BEST move. Reply with ONLY the move (e.g., e2e4).`;
-
-        console.log('Sending to LLM:', prompt);
-
-        try {
-            const response = await fetch(`${this.endpoint}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: this.model,
-                    messages: [
-                        { 
-                            role: 'system', 
-                            content: 'You are a chess grandmaster. ALWAYS capture high-value pieces when possible. Queen=9pts, Rook=5pts, Bishop/Knight=3pts. Reply with ONLY one move like e2e4.' 
-                        },
-                        { role: 'user', content: prompt }
-                    ],
-                    temperature: 0.1,
-                    max_tokens: 100
-                })
-            });
+        // King safety (simple: is king in check?)
+        const inCheck = game.isInCheck(color);
+        const kingSafety = inCheck ? 'danger' : 'safe';
+        
+        // Material advantage
+        const materialAdvantage = myMaterial - opponentMaterial;
+        
+        // Determine strategy
+        let strategy;
+        if (inCheck) {
+            strategy = 'escape_check';
+        } else if (materialAdvantage >= 5) {
+            strategy = 'consolidate'; // Trade pieces, simplify
+        } else if (materialAdvantage <= -5) {
+            strategy = 'aggressive'; // Take risks, seek complications
+        } else if (gamePhase === 'opening') {
+            strategy = 'develop';
+        } else if (gamePhase === 'endgame') {
+            strategy = 'endgame';
+        } else {
+            strategy = 'balanced';
+        }
+        
+        console.log(`Strategy: ${strategy} (material: ${materialAdvantage > 0 ? '+' : ''}${materialAdvantage})`);
+        
+        return {
+            myMaterial,
+            opponentMaterial,
+            materialAdvantage,
+            myPieces,
+            opponentPieces,
+            myKingPos,
+            opponentKingPos,
+            gamePhase,
+            kingSafety,
+            inCheck,
+            strategy
+        };
+    }
+    
+    scoreMove(game, move, color, boardState) {
+        let score = 0;
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        const pieceValues = { pawn: 100, knight: 320, bishop: 330, rook: 500, queen: 900, king: 20000 };
+        
+        const movingPiece = game.board[move.fromRow][move.fromCol];
+        const targetPiece = game.board[move.toRow][move.toCol];
+        
+        // ========== CAPTURES ==========
+        if (targetPiece && targetPiece.color !== color) {
+            const captureValue = pieceValues[targetPiece.type];
+            const attackerValue = pieceValues[movingPiece.type];
             
-            if (!response.ok) {
-                console.warn('Foundry API error:', response.status);
-                return this.selectRandomMove(validMoves);
+            // MVV-LVA: Most Valuable Victim - Least Valuable Attacker
+            score += captureValue * 10;  // Capturing is good
+            score += (1000 - attackerValue); // Prefer capturing with lower-value pieces
+            
+            // Bonus for capturing undefended pieces
+            if (!this.isSquareDefended(game, move.toRow, move.toCol, opponentColor)) {
+                score += captureValue * 5; // Free piece!
             }
             
-            const data = await response.json();
-            const moveText = data.choices[0]?.message?.content?.trim() || '';
-            console.log('LLM response:', moveText.substring(0, 200));
+            // Strategy adjustment
+            if (boardState.strategy === 'consolidate') {
+                // When ahead, prefer equal or favorable trades
+                if (attackerValue <= captureValue) {
+                    score += 500;
+                }
+            } else if (boardState.strategy === 'aggressive') {
+                // When behind, prefer any action
+                score += 300;
+            }
+        }
+        
+        // ========== CHECK ==========
+        // Simulate move and check if it gives check
+        const originalTarget = game.board[move.toRow][move.toCol];
+        game.board[move.toRow][move.toCol] = movingPiece;
+        game.board[move.fromRow][move.fromCol] = null;
+        
+        const givesCheck = game.isInCheck(opponentColor);
+        
+        // Undo simulation
+        game.board[move.fromRow][move.fromCol] = movingPiece;
+        game.board[move.toRow][move.toCol] = originalTarget;
+        
+        if (givesCheck) {
+            score += 800; // Checks are valuable
             
-            // Extract move from response
-            const cleanMove = this.extractMove(moveText, validMoves);
+            // Bonus for check - checkmate detection is too expensive here
+            // The actual checkmate is handled by the game logic
+        }
+        
+        // ========== ESCAPE CHECK ==========
+        if (boardState.inCheck) {
+            // Only moves that escape check are valid (already filtered), but prioritize them
+            score += 5000;
+        }
+        
+        // ========== PIECE SAFETY ==========
+        // Penalize moving to attacked squares
+        if (this.isSquareAttacked(game, move.toRow, move.toCol, opponentColor)) {
+            const pieceValue = pieceValues[movingPiece.type];
             
-            if (cleanMove) {
-                console.log(`LLM selected move: ${cleanMove.notation}`);
-                return cleanMove.move;
+            // Check if we're defended on that square
+            if (this.isSquareDefended(game, move.toRow, move.toCol, color)) {
+                // Defended, but still risky if we're more valuable than attacker
+                score -= pieceValue / 4;
+            } else {
+                // Hanging piece! Bad move unless we capture something bigger
+                if (targetPiece) {
+                    const captureValue = pieceValues[targetPiece.type];
+                    if (captureValue >= pieceValue) {
+                        // Worth the trade
+                        score += 100;
+                    } else {
+                        score -= pieceValue - captureValue;
+                    }
+                } else {
+                    score -= pieceValue; // Moving to danger for nothing
+                }
+            }
+        }
+        
+        // ========== DEVELOPMENT (Opening) ==========
+        if (boardState.gamePhase === 'opening' || boardState.strategy === 'develop') {
+            // Develop knights and bishops
+            if (movingPiece.type === 'knight' || movingPiece.type === 'bishop') {
+                // Bonus for moving from back rank
+                const backRank = color === 'white' ? 7 : 0;
+                if (move.fromRow === backRank) {
+                    score += 150; // Develop!
+                }
             }
             
-            console.log('LLM response did not match valid moves, selecting random');
-            return this.selectRandomMove(validMoves);
+            // Control center
+            const centerSquares = [[3,3], [3,4], [4,3], [4,4]];
+            const nearCenter = [[2,2], [2,3], [2,4], [2,5], [3,2], [3,5], [4,2], [4,5], [5,2], [5,3], [5,4], [5,5]];
             
-        } catch (error) {
-            console.warn('Foundry Local error:', error.message);
-            return this.selectRandomMove(validMoves);
+            if (centerSquares.some(([r, c]) => move.toRow === r && move.toCol === c)) {
+                score += 100; // Center control
+            } else if (nearCenter.some(([r, c]) => move.toRow === r && move.toCol === c)) {
+                score += 50;
+            }
+            
+            // Don't move queen too early
+            if (movingPiece.type === 'queen' && boardState.gamePhase === 'opening') {
+                score -= 100;
+            }
+            
+            // Castle bonus (moving king towards rook)
+            if (movingPiece.type === 'king') {
+                const kingStartCol = 4;
+                if (Math.abs(move.toCol - kingStartCol) === 2) {
+                    score += 300; // Castling!
+                }
+            }
+        }
+        
+        // ========== ENDGAME ==========
+        if (boardState.gamePhase === 'endgame' || boardState.strategy === 'endgame') {
+            // Push pawns in endgame
+            if (movingPiece.type === 'pawn') {
+                const promotionRank = color === 'white' ? 0 : 7;
+                const distanceToPromotion = Math.abs(move.toRow - promotionRank);
+                score += (7 - distanceToPromotion) * 30;
+                
+                // Passed pawns are very valuable
+                if (this.isPassedPawn(game, move.toRow, move.toCol, color)) {
+                    score += 200;
+                }
+            }
+            
+            // Activate king in endgame
+            if (movingPiece.type === 'king') {
+                // Move towards center
+                const centerDist = Math.abs(move.toRow - 3.5) + Math.abs(move.toCol - 3.5);
+                score += (7 - centerDist) * 20;
+            }
+            
+            // Push opponent king to edge
+            if (boardState.opponentKingPos && boardState.materialAdvantage > 3) {
+                const oppKing = boardState.opponentKingPos;
+                const edgeDist = Math.min(oppKing.row, 7 - oppKing.row, oppKing.col, 7 - oppKing.col);
+                score += (4 - edgeDist) * 30; // King closer to edge = better
+            }
+        }
+        
+        // ========== CONSOLIDATE (When ahead) ==========
+        if (boardState.strategy === 'consolidate') {
+            // Prefer trades
+            if (targetPiece) {
+                score += 200;
+            }
+            // Keep pieces defended
+            // Avoid risky moves
+            if (this.isSquareAttacked(game, move.toRow, move.toCol, opponentColor)) {
+                score -= 100;
+            }
+        }
+        
+        // ========== AGGRESSIVE (When behind) ==========
+        if (boardState.strategy === 'aggressive') {
+            // Look for tactics, complications
+            if (givesCheck) {
+                score += 200;
+            }
+            // Attack opponent pieces
+            if (this.attacksOpponentPieces(game, move, color)) {
+                score += 150;
+            }
+        }
+        
+        // ========== PIECE-SQUARE TABLES (Positional) ==========
+        score += this.getPositionBonus(movingPiece, move.toRow, move.toCol, color);
+        score -= this.getPositionBonus(movingPiece, move.fromRow, move.fromCol, color);
+        
+        return score;
+    }
+    
+    // Helper: Check if square is attacked by opponent
+    isSquareAttacked(game, row, col, byColor) {
+        // Simple check: can any opponent piece move to this square?
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const piece = game.board[r][c];
+                if (piece && piece.color === byColor) {
+                    if (this.canPieceAttackSquare(piece, r, c, row, col, game)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
+    // Helper: Check if square is defended by friendly pieces
+    isSquareDefended(game, row, col, byColor) {
+        return this.isSquareAttacked(game, row, col, byColor);
+    }
+    
+    // Helper: Can a piece attack a square?
+    canPieceAttackSquare(piece, fromRow, fromCol, toRow, toCol, game) {
+        const rowDiff = toRow - fromRow;
+        const colDiff = toCol - fromCol;
+        const absRow = Math.abs(rowDiff);
+        const absCol = Math.abs(colDiff);
+        
+        switch (piece.type) {
+            case 'pawn':
+                const direction = piece.color === 'white' ? -1 : 1;
+                return rowDiff === direction && absCol === 1;
+            
+            case 'knight':
+                return (absRow === 2 && absCol === 1) || (absRow === 1 && absCol === 2);
+            
+            case 'bishop':
+                if (absRow !== absCol || absRow === 0) return false;
+                return this.isPathClear(game, fromRow, fromCol, toRow, toCol);
+            
+            case 'rook':
+                if (rowDiff !== 0 && colDiff !== 0) return false;
+                return this.isPathClear(game, fromRow, fromCol, toRow, toCol);
+            
+            case 'queen':
+                if (rowDiff !== 0 && colDiff !== 0 && absRow !== absCol) return false;
+                return this.isPathClear(game, fromRow, fromCol, toRow, toCol);
+            
+            case 'king':
+                return absRow <= 1 && absCol <= 1 && (absRow + absCol > 0);
+            
+            default:
+                return false;
         }
     }
+    
+    // Helper: Check if path is clear for sliding pieces
+    isPathClear(game, fromRow, fromCol, toRow, toCol) {
+        const rowStep = Math.sign(toRow - fromRow);
+        const colStep = Math.sign(toCol - fromCol);
+        
+        let r = fromRow + rowStep;
+        let c = fromCol + colStep;
+        
+        while (r !== toRow || c !== toCol) {
+            if (game.board[r][c]) return false;
+            r += rowStep;
+            c += colStep;
+        }
+        
+        return true;
+    }
+    
+    // Helper: Is pawn passed?
+    isPassedPawn(game, row, col, color) {
+        const direction = color === 'white' ? -1 : 1;
+        const promotionRank = color === 'white' ? 0 : 7;
+        
+        // Check if any enemy pawns can block or capture
+        for (let r = row + direction; r !== promotionRank + direction; r += direction) {
+            for (let c = Math.max(0, col - 1); c <= Math.min(7, col + 1); c++) {
+                const piece = game.board[r][c];
+                if (piece && piece.type === 'pawn' && piece.color !== color) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    
+    // Helper: Does move attack opponent pieces?
+    attacksOpponentPieces(game, move, color) {
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        const movingPiece = game.board[move.fromRow][move.fromCol];
+        
+        // Check all directions the piece can attack from new position
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const piece = game.board[r][c];
+                if (piece && piece.color === opponentColor && piece.type !== 'king') {
+                    if (this.canPieceAttackSquare(movingPiece, move.toRow, move.toCol, r, c, game)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
+    // Piece-square tables for positional evaluation
+    getPositionBonus(piece, row, col, color) {
+        const tables = {
+            pawn: [
+                [0,  0,  0,  0,  0,  0,  0,  0],
+                [50, 50, 50, 50, 50, 50, 50, 50],
+                [10, 10, 20, 30, 30, 20, 10, 10],
+                [5,  5, 10, 25, 25, 10,  5,  5],
+                [0,  0,  0, 20, 20,  0,  0,  0],
+                [5, -5,-10,  0,  0,-10, -5,  5],
+                [5, 10, 10,-20,-20, 10, 10,  5],
+                [0,  0,  0,  0,  0,  0,  0,  0]
+            ],
+            knight: [
+                [-50,-40,-30,-30,-30,-30,-40,-50],
+                [-40,-20,  0,  0,  0,  0,-20,-40],
+                [-30,  0, 10, 15, 15, 10,  0,-30],
+                [-30,  5, 15, 20, 20, 15,  5,-30],
+                [-30,  0, 15, 20, 20, 15,  0,-30],
+                [-30,  5, 10, 15, 15, 10,  5,-30],
+                [-40,-20,  0,  5,  5,  0,-20,-40],
+                [-50,-40,-30,-30,-30,-30,-40,-50]
+            ],
+            bishop: [
+                [-20,-10,-10,-10,-10,-10,-10,-20],
+                [-10,  0,  0,  0,  0,  0,  0,-10],
+                [-10,  0, 10, 10, 10, 10,  0,-10],
+                [-10,  5,  5, 10, 10,  5,  5,-10],
+                [-10,  0,  5, 10, 10,  5,  0,-10],
+                [-10,  5,  5,  5,  5,  5,  5,-10],
+                [-10,  5,  0,  0,  0,  0,  5,-10],
+                [-20,-10,-10,-10,-10,-10,-10,-20]
+            ],
+            rook: [
+                [ 0,  0,  0,  0,  0,  0,  0,  0],
+                [ 5, 10, 10, 10, 10, 10, 10,  5],
+                [-5,  0,  0,  0,  0,  0,  0, -5],
+                [-5,  0,  0,  0,  0,  0,  0, -5],
+                [-5,  0,  0,  0,  0,  0,  0, -5],
+                [-5,  0,  0,  0,  0,  0,  0, -5],
+                [-5,  0,  0,  0,  0,  0,  0, -5],
+                [ 0,  0,  0,  5,  5,  0,  0,  0]
+            ],
+            queen: [
+                [-20,-10,-10, -5, -5,-10,-10,-20],
+                [-10,  0,  0,  0,  0,  0,  0,-10],
+                [-10,  0,  5,  5,  5,  5,  0,-10],
+                [ -5,  0,  5,  5,  5,  5,  0, -5],
+                [  0,  0,  5,  5,  5,  5,  0, -5],
+                [-10,  5,  5,  5,  5,  5,  0,-10],
+                [-10,  0,  5,  0,  0,  0,  0,-10],
+                [-20,-10,-10, -5, -5,-10,-10,-20]
+            ],
+            king: [
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-20,-30,-30,-40,-40,-30,-30,-20],
+                [-10,-20,-20,-20,-20,-20,-20,-10],
+                [ 20, 20,  0,  0,  0,  0, 20, 20],
+                [ 20, 30, 10,  0,  0, 10, 30, 20]
+            ]
+        };
+        
+        const table = tables[piece.type];
+        if (!table) return 0;
+        
+        // Flip table for black
+        const r = color === 'white' ? row : 7 - row;
+        return table[r][col];
+    }
+    
+    moveToNotation(move) {
+        const cols = 'abcdefgh';
+        return `${cols[move.fromCol]}${8 - move.fromRow}${cols[move.toCol]}${8 - move.toRow}`;
+    }
+    
+    // ==================== END RULES ENGINE ====================
     
     extractMove(text, validMoves) {
         // Remove thinking tags if present (for reasoning models)

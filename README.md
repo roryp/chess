@@ -20,18 +20,21 @@ A feature-rich, browser-based chess game with AI opponents, move validation, fam
 | **AI vs Human** | Let the AI make the first move |
 | **AI vs AI** | Watch two AI players battle it out automatically |
 
-### 🤖 AI Player
-- **Intelligent Move Selection**: Uses minimax algorithm with alpha-beta pruning
-- **Per-Player Difficulty Settings**:
-  - 🟢 **Easy** - 1-ply search depth, occasional random moves
-  - 🟡 **Medium** - 2-ply search depth, balanced play
-  - 🔴 **Hard** - 3-ply search depth, strongest evaluation
-- **Mix Difficulties**: Set White to Hard and Black to Easy for decisive games!
-- **Endgame Intelligence**: Deeper search in endgame, pushes enemy king to corner
-- **Check/Checkmate Priority**: AI actively seeks check and checkmate positions
-- **Position Evaluation**: Piece values + piece-square tables for strategic positioning
-- **Repetition Avoidance**: AI penalizes moves that would repeat positions
+### 🤖 AI Player (Powered by Rules Engine)
+- **Adaptive Strategy Engine**: Pure code-based chess AI that adapts to board state
+- **Dynamic Strategy Selection**:
+  - 📖 **Opening**: Develop knights/bishops, control center, avoid early queen moves
+  - ⚔️ **Aggressive**: When behind in material - seek complications, attack, give checks
+  - 🛡️ **Consolidate**: When ahead in material - trade pieces, simplify, avoid risk
+  - 🏃 **Escape Check**: Prioritize king safety when in check
+  - 👑 **Endgame**: Push passed pawns, activate king, corner opponent king
+- **Smart Capture Logic**: MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+- **Piece Safety Analysis**: Avoids moving pieces to undefended attacked squares
+- **Position Evaluation**: Piece-square tables for strategic positioning
+- **Check Detection**: Prioritizes check-giving moves
+- **Real-time Thinking**: Watch the AI think with detailed console logs
 - **Configurable Move Delay**: 100ms to 3000ms for comfortable viewing
+- **No LLM Required**: Fully functional without external services
 
 ### 🤝 Draw Detection
 - ✅ **Threefold Repetition** - Game ends when the same position occurs 3 times
@@ -99,9 +102,8 @@ npx serve
 1. Use the **AI Player Settings** panel at the top
 2. Set **White Player** to Human or AI
 3. Set **Black Player** to Human or AI
-4. Choose **AI Difficulty** (Easy/Medium/Hard)
-5. Adjust **AI Move Delay** for comfortable viewing
-6. Click **New Game** to start with your settings
+4. Adjust **AI Move Delay** for comfortable viewing
+5. Click **New Game** to start with your settings
 
 ### Watching Famous Games
 1. Select a game from the **Famous Games** dropdown
@@ -135,7 +137,7 @@ Watch historic games like "The Immortal Game" with play controls:
 ```
 chess/
 ├── index.html          # Main HTML file with game layout
-├── chess.js            # Game logic, AI engine, and event handling
+├── chess.js            # Game logic, Rules Engine AI, and event handling
 ├── chess.css           # Styling and animations
 ├── package.json        # Project metadata and dependencies
 ├── playwright.config.js # Test configuration
@@ -183,12 +185,30 @@ npx playwright show-report
 
 ## 🔧 Technical Details
 
-### AI Algorithm
-The chess AI uses a **minimax algorithm with alpha-beta pruning**:
+### AI Rules Engine Architecture
+The chess AI uses a **comprehensive rules engine** that adapts strategy based on board state:
 
-```
-Evaluation = Σ(piece_value × piece_count) + Σ(position_bonus)
-```
+**1. Board State Analysis:**
+- Material count for both sides
+- Game phase detection (opening/middlegame/endgame)
+- King safety evaluation
+- Strategic mode selection
+
+**2. Strategic Modes:**
+| Mode | Trigger | Behavior |
+|------|---------|----------|
+| `develop` | Opening phase | Develop pieces, control center |
+| `aggressive` | Down 5+ material | Seek complications, attack |
+| `consolidate` | Up 5+ material | Trade pieces, simplify |
+| `escape_check` | King in check | Prioritize safety |
+| `endgame` | Low material | Push pawns, activate king |
+
+**3. Move Scoring Components:**
+- **Captures**: MVV-LVA scoring (Queen=900, Rook=500, etc.)
+- **Checks**: +800 bonus for check-giving moves
+- **Safety**: Penalize moves to attacked squares
+- **Position**: Piece-square table bonuses
+- **Development**: Bonus for piece development in opening
 
 **Piece Values:**
 | Piece | Value |
@@ -200,16 +220,11 @@ Evaluation = Σ(piece_value × piece_count) + Σ(position_bonus)
 | Queen | 900 |
 | King | 20,000 |
 
-**Position Bonuses:** Each piece type has a position table that rewards:
-- Central control for pawns and knights
-- Open diagonals for bishops
-- Open files for rooks
-- King safety (staying castled)
-
 ### Technologies Used
 - **HTML5** - Semantic markup
 - **CSS3** - Modern styling with animations, gradients, and transitions
 - **Vanilla JavaScript** - No frameworks, pure ES6+
+- **Rules Engine** - Custom tactical/positional evaluation
 - **Playwright** - End-to-end testing
 
 ### Browser Support
