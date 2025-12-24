@@ -1,4 +1,291 @@
-// Chess Game with Famous Game Recaps
+// Chess Game with Famous Game Recaps and AI Players
+
+// Chess AI Class using heuristic evaluation
+class ChessAI {
+    constructor(difficulty = 'medium') {
+        this.difficulty = difficulty;
+        this.pieceValues = {
+            pawn: 100,
+            knight: 320,
+            bishop: 330,
+            rook: 500,
+            queen: 900,
+            king: 20000
+        };
+        
+        // Position tables for piece-square evaluation
+        this.pawnTable = [
+            [0,  0,  0,  0,  0,  0,  0,  0],
+            [50, 50, 50, 50, 50, 50, 50, 50],
+            [10, 10, 20, 30, 30, 20, 10, 10],
+            [5,  5, 10, 25, 25, 10,  5,  5],
+            [0,  0,  0, 20, 20,  0,  0,  0],
+            [5, -5,-10,  0,  0,-10, -5,  5],
+            [5, 10, 10,-20,-20, 10, 10,  5],
+            [0,  0,  0,  0,  0,  0,  0,  0]
+        ];
+        
+        this.knightTable = [
+            [-50,-40,-30,-30,-30,-30,-40,-50],
+            [-40,-20,  0,  0,  0,  0,-20,-40],
+            [-30,  0, 10, 15, 15, 10,  0,-30],
+            [-30,  5, 15, 20, 20, 15,  5,-30],
+            [-30,  0, 15, 20, 20, 15,  0,-30],
+            [-30,  5, 10, 15, 15, 10,  5,-30],
+            [-40,-20,  0,  5,  5,  0,-20,-40],
+            [-50,-40,-30,-30,-30,-30,-40,-50]
+        ];
+        
+        this.bishopTable = [
+            [-20,-10,-10,-10,-10,-10,-10,-20],
+            [-10,  0,  0,  0,  0,  0,  0,-10],
+            [-10,  0,  5, 10, 10,  5,  0,-10],
+            [-10,  5,  5, 10, 10,  5,  5,-10],
+            [-10,  0, 10, 10, 10, 10,  0,-10],
+            [-10, 10, 10, 10, 10, 10, 10,-10],
+            [-10,  5,  0,  0,  0,  0,  5,-10],
+            [-20,-10,-10,-10,-10,-10,-10,-20]
+        ];
+        
+        this.rookTable = [
+            [0,  0,  0,  0,  0,  0,  0,  0],
+            [5, 10, 10, 10, 10, 10, 10,  5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [0,  0,  0,  5,  5,  0,  0,  0]
+        ];
+        
+        this.queenTable = [
+            [-20,-10,-10, -5, -5,-10,-10,-20],
+            [-10,  0,  0,  0,  0,  0,  0,-10],
+            [-10,  0,  5,  5,  5,  5,  0,-10],
+            [-5,  0,  5,  5,  5,  5,  0, -5],
+            [0,  0,  5,  5,  5,  5,  0, -5],
+            [-10,  5,  5,  5,  5,  5,  0,-10],
+            [-10,  0,  5,  0,  0,  0,  0,-10],
+            [-20,-10,-10, -5, -5,-10,-10,-20]
+        ];
+        
+        this.kingMiddleGameTable = [
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-20,-30,-30,-40,-40,-30,-30,-20],
+            [-10,-20,-20,-20,-20,-20,-20,-10],
+            [20, 20,  0,  0,  0,  0, 20, 20],
+            [20, 30, 10,  0,  0, 10, 30, 20]
+        ];
+    }
+    
+    setDifficulty(difficulty) {
+        this.difficulty = difficulty;
+    }
+    
+    getSearchDepth() {
+        switch (this.difficulty) {
+            case 'easy': return 1;
+            case 'medium': return 2;
+            case 'hard': return 3;
+            default: return 2;
+        }
+    }
+    
+    evaluateBoard(board, color) {
+        let score = 0;
+        
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (piece) {
+                    let pieceScore = this.pieceValues[piece.type];
+                    pieceScore += this.getPositionValue(piece, row, col);
+                    
+                    if (piece.color === color) {
+                        score += pieceScore;
+                    } else {
+                        score -= pieceScore;
+                    }
+                }
+            }
+        }
+        
+        return score;
+    }
+    
+    getPositionValue(piece, row, col) {
+        const isWhite = piece.color === 'white';
+        const r = isWhite ? row : 7 - row;
+        
+        switch (piece.type) {
+            case 'pawn': return this.pawnTable[r][col];
+            case 'knight': return this.knightTable[r][col];
+            case 'bishop': return this.bishopTable[r][col];
+            case 'rook': return this.rookTable[r][col];
+            case 'queen': return this.queenTable[r][col];
+            case 'king': return this.kingMiddleGameTable[r][col];
+            default: return 0;
+        }
+    }
+    
+    getAllValidMoves(game, color) {
+        const moves = [];
+        
+        for (let fromRow = 0; fromRow < 8; fromRow++) {
+            for (let fromCol = 0; fromCol < 8; fromCol++) {
+                const piece = game.board[fromRow][fromCol];
+                if (piece && piece.color === color) {
+                    for (let toRow = 0; toRow < 8; toRow++) {
+                        for (let toCol = 0; toCol < 8; toCol++) {
+                            if (game.isValidMove(fromRow, fromCol, toRow, toCol)) {
+                                moves.push({
+                                    fromRow, fromCol, toRow, toCol,
+                                    piece: piece,
+                                    captured: game.board[toRow][toCol]
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return moves;
+    }
+    
+    simulateMove(board, move) {
+        const newBoard = board.map(row => row.map(cell => cell ? {...cell} : null));
+        newBoard[move.toRow][move.toCol] = newBoard[move.fromRow][move.fromCol];
+        newBoard[move.fromRow][move.fromCol] = null;
+        return newBoard;
+    }
+    
+    minimax(game, depth, alpha, beta, maximizing, color) {
+        if (depth === 0) {
+            return { score: this.evaluateBoard(game.board, color) };
+        }
+        
+        const currentColor = maximizing ? color : (color === 'white' ? 'black' : 'white');
+        const moves = this.getAllValidMoves(game, currentColor);
+        
+        if (moves.length === 0) {
+            return { score: maximizing ? -Infinity : Infinity };
+        }
+        
+        let bestMove = null;
+        
+        if (maximizing) {
+            let maxScore = -Infinity;
+            for (const move of moves) {
+                const originalBoard = game.board;
+                game.board = this.simulateMove(game.board, move);
+                
+                const result = this.minimax(game, depth - 1, alpha, beta, false, color);
+                
+                game.board = originalBoard;
+                
+                if (result.score > maxScore) {
+                    maxScore = result.score;
+                    bestMove = move;
+                }
+                
+                alpha = Math.max(alpha, result.score);
+                if (beta <= alpha) break;
+            }
+            return { score: maxScore, move: bestMove };
+        } else {
+            let minScore = Infinity;
+            for (const move of moves) {
+                const originalBoard = game.board;
+                game.board = this.simulateMove(game.board, move);
+                
+                const result = this.minimax(game, depth - 1, alpha, beta, true, color);
+                
+                game.board = originalBoard;
+                
+                if (result.score < minScore) {
+                    minScore = result.score;
+                    bestMove = move;
+                }
+                
+                beta = Math.min(beta, result.score);
+                if (beta <= alpha) break;
+            }
+            return { score: minScore, move: bestMove };
+        }
+    }
+    
+    getBestMove(game, color) {
+        const depth = this.getSearchDepth();
+        const moves = this.getAllValidMoves(game, color);
+        
+        if (moves.length === 0) return null;
+        
+        // Add some randomness for easy difficulty
+        if (this.difficulty === 'easy' && Math.random() < 0.3) {
+            return moves[Math.floor(Math.random() * moves.length)];
+        }
+        
+        // Evaluate all moves and filter out ones that would cause repetition
+        const evaluatedMoves = [];
+        
+        for (const move of moves) {
+            const originalBoard = game.board;
+            game.board = this.simulateMove(game.board, move);
+            
+            // Check if this move would lead to a repeated position
+            const positionKey = game.getBoardPositionKey();
+            const occurrences = game.countPositionOccurrences(positionKey);
+            
+            // Penalize moves that would repeat a position
+            let score = this.evaluateBoard(game.board, color);
+            if (occurrences >= 1) {
+                score -= 50;  // Penalty for first repetition
+            }
+            if (occurrences >= 2) {
+                score -= 500;  // Heavy penalty to avoid third repetition (draw)
+            }
+            
+            game.board = originalBoard;
+            
+            evaluatedMoves.push({ move, score });
+        }
+        
+        // Sort by score descending and pick the best non-repetitive move
+        evaluatedMoves.sort((a, b) => b.score - a.score);
+        
+        // Use full minimax for the best candidates (top 5 moves that avoid repetition)
+        const candidates = evaluatedMoves.slice(0, 5);
+        let bestMove = null;
+        let bestScore = -Infinity;
+        
+        for (const { move } of candidates) {
+            const originalBoard = game.board;
+            game.board = this.simulateMove(game.board, move);
+            
+            const result = this.minimax(game, depth - 1, -Infinity, Infinity, false, color);
+            
+            // Apply repetition penalty
+            const positionKey = game.getBoardPositionKey();
+            const occurrences = game.countPositionOccurrences(positionKey);
+            let adjustedScore = result.score;
+            if (occurrences >= 1) adjustedScore -= 50;
+            if (occurrences >= 2) adjustedScore -= 500;
+            
+            game.board = originalBoard;
+            
+            if (adjustedScore > bestScore) {
+                bestScore = adjustedScore;
+                bestMove = move;
+            }
+        }
+        
+        return bestMove || evaluatedMoves[0]?.move;
+    }
+}
 
 class ChessGame {
     constructor() {
@@ -10,6 +297,19 @@ class ChessGame {
         this.famousGameIndex = null;
         this.famousGameMoveIndex = 0;
         this.isReplaying = false;
+        
+        // AI Settings
+        this.ai = new ChessAI('medium');
+        this.whitePlayer = 'human';  // 'human' or 'ai'
+        this.blackPlayer = 'human';  // 'human' or 'ai'
+        this.aiDelay = 500;
+        this.aiThinking = false;
+        this.gameOver = false;
+        
+        // Draw detection
+        this.positionHistory = [];  // For threefold repetition
+        this.halfMoveClock = 0;     // For 50-move rule (resets on pawn move or capture)
+        this.maxMoves = 200;        // Maximum moves before declaring draw
         
         this.famousGames = [
             {
@@ -95,6 +395,108 @@ class ChessGame {
         this.renderBoard();
         this.setupEventListeners();
         this.updateTurnIndicator();
+        this.setupAIControls();
+    }
+    
+    setupAIControls() {
+        const whiteSelect = document.getElementById('white-player');
+        const blackSelect = document.getElementById('black-player');
+        const difficultySelect = document.getElementById('ai-difficulty');
+        const delayInput = document.getElementById('ai-delay');
+        
+        if (whiteSelect) {
+            whiteSelect.addEventListener('change', (e) => {
+                this.whitePlayer = e.target.value;
+                this.updateAIStatus();
+                if (this.currentTurn === 'white' && this.whitePlayer === 'ai' && !this.isReplaying && !this.gameOver) {
+                    this.triggerAIMove();
+                }
+            });
+        }
+        
+        if (blackSelect) {
+            blackSelect.addEventListener('change', (e) => {
+                this.blackPlayer = e.target.value;
+                this.updateAIStatus();
+                if (this.currentTurn === 'black' && this.blackPlayer === 'ai' && !this.isReplaying && !this.gameOver) {
+                    this.triggerAIMove();
+                }
+            });
+        }
+        
+        if (difficultySelect) {
+            difficultySelect.addEventListener('change', (e) => {
+                this.ai.setDifficulty(e.target.value);
+                this.updateAIStatus();
+            });
+        }
+        
+        if (delayInput) {
+            delayInput.addEventListener('change', (e) => {
+                this.aiDelay = parseInt(e.target.value) || 500;
+            });
+        }
+        
+        this.updateAIStatus();
+    }
+    
+    updateAIStatus() {
+        const statusElement = document.getElementById('ai-status');
+        if (statusElement) {
+            if (this.whitePlayer === 'ai' && this.blackPlayer === 'ai') {
+                statusElement.textContent = '🤖 AI vs AI Mode - Watch the game unfold!';
+                statusElement.className = 'ai-status ai-vs-ai';
+            } else if (this.whitePlayer === 'ai') {
+                statusElement.textContent = '🤖 AI plays White';
+                statusElement.className = 'ai-status ai-white';
+            } else if (this.blackPlayer === 'ai') {
+                statusElement.textContent = '🤖 AI plays Black';
+                statusElement.className = 'ai-status ai-black';
+            } else {
+                statusElement.textContent = '👤 Human vs Human';
+                statusElement.className = 'ai-status human-vs-human';
+            }
+            
+            if (this.aiThinking) {
+                statusElement.textContent += ' (Thinking...)';
+            }
+        }
+    }
+    
+    isCurrentPlayerAI() {
+        return (this.currentTurn === 'white' && this.whitePlayer === 'ai') ||
+               (this.currentTurn === 'black' && this.blackPlayer === 'ai');
+    }
+    
+    async triggerAIMove() {
+        if (this.aiThinking || this.isReplaying || this.gameOver) return;
+        
+        this.aiThinking = true;
+        this.updateAIStatus();
+        
+        await new Promise(resolve => setTimeout(resolve, this.aiDelay));
+        
+        const move = this.ai.getBestMove(this, this.currentTurn);
+        
+        if (move) {
+            this.makeMove(move.fromRow, move.fromCol, move.toRow, move.toCol);
+            this.renderBoard();
+        } else {
+            // No valid moves - game over
+            this.gameOver = true;
+            const statusElement = document.getElementById('game-status');
+            if (statusElement) {
+                statusElement.textContent = `Game Over! ${this.currentTurn === 'white' ? 'Black' : 'White'} wins!`;
+            }
+        }
+        
+        this.aiThinking = false;
+        this.updateAIStatus();
+        
+        // Check if next player is also AI
+        if (this.isCurrentPlayerAI() && !this.gameOver) {
+            this.triggerAIMove();
+        }
     }
     
     createBoard() {
@@ -185,6 +587,9 @@ class ChessGame {
     
     handleSquareClick(row, col) {
         if (this.isReplaying) return;
+        if (this.isCurrentPlayerAI()) return; // Don't allow human input during AI turn
+        if (this.aiThinking) return;
+        if (this.gameOver) return;
         
         const piece = this.board[row][col];
         
@@ -196,6 +601,11 @@ class ChessGame {
                     this.makeMove(this.selectedSquare.row, this.selectedSquare.col, row, col);
                     this.selectedSquare = null;
                     this.renderBoard();
+                    
+                    // Trigger AI move if next player is AI
+                    if (this.isCurrentPlayerAI() && !this.gameOver) {
+                        this.triggerAIMove();
+                    }
                     return;
                 }
             }
@@ -325,6 +735,13 @@ class ChessGame {
         const piece = this.board[fromRow][fromCol];
         const captured = this.board[toRow][toCol];
         
+        // Update half-move clock (for 50-move rule)
+        if (piece.type === 'pawn' || captured) {
+            this.halfMoveClock = 0;
+        } else {
+            this.halfMoveClock++;
+        }
+        
         this.board[toRow][toCol] = piece;
         this.board[fromRow][fromCol] = null;
         
@@ -334,6 +751,75 @@ class ChessGame {
         
         this.currentTurn = this.currentTurn === 'white' ? 'black' : 'white';
         this.updateTurnIndicator();
+        
+        // Track position for repetition detection
+        const positionKey = this.getBoardPositionKey();
+        this.positionHistory.push(positionKey);
+        
+        // Check for draws and game over
+        this.checkGameOver();
+    }
+    
+    getBoardPositionKey() {
+        // Create a unique string representing the current board position
+        let key = this.currentTurn;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece) {
+                    key += `${row}${col}${piece.type[0]}${piece.color[0]}`;
+                }
+            }
+        }
+        return key;
+    }
+    
+    countPositionOccurrences(positionKey) {
+        return this.positionHistory.filter(p => p === positionKey).length;
+    }
+    
+    checkGameOver() {
+        const statusElement = document.getElementById('game-status');
+        
+        // Check for threefold repetition (position must have occurred 3+ times)
+        const currentPosition = this.getBoardPositionKey();
+        const occurrences = this.countPositionOccurrences(currentPosition);
+        if (occurrences >= 3) {
+            this.gameOver = true;
+            if (statusElement) {
+                statusElement.textContent = `🤝 Draw by threefold repetition! (Position repeated ${occurrences} times)`;
+            }
+            return;
+        }
+        
+        // Check for 50-move rule
+        if (this.halfMoveClock >= 100) {  // 100 half-moves = 50 full moves
+            this.gameOver = true;
+            if (statusElement) {
+                statusElement.textContent = `🤝 Draw by 50-move rule!`;
+            }
+            return;
+        }
+        
+        // Check for maximum moves (safety limit for AI vs AI)
+        if (this.moveHistory.length >= this.maxMoves) {
+            this.gameOver = true;
+            if (statusElement) {
+                statusElement.textContent = `🤝 Draw by move limit (${this.maxMoves} moves)!`;
+            }
+            return;
+        }
+        
+        // Check if current player has any valid moves
+        const moves = this.ai.getAllValidMoves(this, this.currentTurn);
+        
+        if (moves.length === 0) {
+            this.gameOver = true;
+            const winner = this.currentTurn === 'white' ? 'Black' : 'White';
+            if (statusElement) {
+                statusElement.textContent = `🏆 Game Over! ${winner} wins!`;
+            }
+        }
     }
     
     getMoveNotation(fromRow, fromCol, toRow, toCol) {
@@ -357,7 +843,9 @@ class ChessGame {
     
     updateTurnIndicator() {
         const turnElement = document.getElementById('current-turn');
-        turnElement.textContent = `${this.currentTurn.charAt(0).toUpperCase() + this.currentTurn.slice(1)} to move`;
+        const playerType = this.isCurrentPlayerAI() ? '🤖' : '👤';
+        const thinkingText = this.aiThinking ? ' (Thinking...)' : '';
+        turnElement.textContent = `${playerType} ${this.currentTurn.charAt(0).toUpperCase() + this.currentTurn.slice(1)} to move${thinkingText}`;
     }
     
     setupEventListeners() {
@@ -372,11 +860,27 @@ class ChessGame {
         this.famousGameIndex = null;
         this.famousGameMoveIndex = 0;
         this.isReplaying = false;
+        this.gameOver = false;
+        this.aiThinking = false;
+        this.positionHistory = [];
+        this.halfMoveClock = 0;
         this.setupPieces();
         this.renderBoard();
         this.updateMoveHistory();
         this.updateTurnIndicator();
         this.hideFamousGameInfo();
+        this.updateAIStatus();
+        
+        // Clear game status
+        const statusElement = document.getElementById('game-status');
+        if (statusElement) {
+            statusElement.textContent = '';
+        }
+        
+        // If white is AI, trigger AI move
+        if (this.whitePlayer === 'ai') {
+            setTimeout(() => this.triggerAIMove(), 100);
+        }
     }
     
     flipBoard() {
