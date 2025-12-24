@@ -56,14 +56,18 @@ class FoundryChessAI {
         const boardStr = this.formatBoard(game.board);
         const movesStr = this.formatMoveList(validMoves);
         
-        // Simple, direct prompt for faster response
-        const prompt = `Chess position (uppercase=White, lowercase=Black):
+        // Build comprehensive prompt with full board state
+        const prompt = `You are playing chess as ${color.toUpperCase()}.
+
+CURRENT BOARD:
 ${boardStr}
 
-Playing as: ${color.toUpperCase()}
-Legal moves: ${movesStr}
+YOUR COLOR: ${color.toUpperCase()}
+LEGAL MOVES: ${movesStr}
 
-Pick the best move. Reply with just the move like: e2e4`;
+Choose the best move from the legal moves list. Reply with ONLY the move (e.g., e2e4).`;
+
+        console.log('Sending to LLM:', prompt);
 
         try {
             const response = await fetch(`${this.endpoint}/chat/completions`, {
@@ -76,12 +80,12 @@ Pick the best move. Reply with just the move like: e2e4`;
                     messages: [
                         { 
                             role: 'system', 
-                            content: 'You are a chess engine. Reply with only a move in format like e2e4. No explanation.' 
+                            content: 'You are a chess engine. Analyze the board and pick the best legal move. Reply with ONLY the move notation like e2e4 or g1f3. Nothing else.' 
                         },
                         { role: 'user', content: prompt }
                     ],
                     temperature: 0.1,
-                    max_tokens: 500
+                    max_tokens: 100
                 })
             });
             
