@@ -48,6 +48,20 @@ class FoundryChessAI {
         if (validMoves.length === 0) return null;
         if (validMoves.length === 1) return validMoves[0];
         
+        // SMART MOVE SELECTION: Prioritize captures using code logic (LLM is not good at chess)
+        const bestCapture = this.findBestCapture(game, validMoves, color);
+        if (bestCapture) {
+            console.log(`AI capturing: ${bestCapture.notation} takes ${bestCapture.piece} (${bestCapture.value} pts)`);
+            return bestCapture.move;
+        }
+        
+        // Check for check-giving moves
+        const checkMove = this.findCheckMove(game, validMoves, color);
+        if (checkMove) {
+            console.log(`AI giving check: ${checkMove.notation}`);
+            return checkMove.move;
+        }
+        
         // If API was previously unavailable, use random fallback
         if (!this.available) {
             return this.selectRandomMove(validMoves);
@@ -55,17 +69,28 @@ class FoundryChessAI {
         
         const boardStr = this.formatBoard(game.board);
         const movesStr = this.formatMoveList(validMoves);
+        const captureInfo = this.analyzeCapturesAndThreats(game, validMoves, color);
         
-        // Build comprehensive prompt with full board state
-        const prompt = `You are playing chess as ${color.toUpperCase()}.
+        // Build comprehensive prompt with strategic guidance
+        const prompt = `You are a chess grandmaster playing as ${color.toUpperCase()}.
 
-CURRENT BOARD:
+BOARD (uppercase=White, lowercase=Black, .=empty):
 ${boardStr}
 
-YOUR COLOR: ${color.toUpperCase()}
-LEGAL MOVES: ${movesStr}
+PIECE VALUES: Queen=9, Rook=5, Bishop=3, Knight=3, Pawn=1
 
-Choose the best move from the legal moves list. Reply with ONLY the move (e.g., e2e4).`;
+YOUR COLOR: ${color.toUpperCase()}
+${captureInfo}
+
+ALL LEGAL MOVES: ${movesStr}
+
+STRATEGY PRIORITY:
+1. CAPTURE the highest value piece if possible
+2. Avoid leaving your pieces undefended
+3. Control the center (d4,d5,e4,e5)
+4. Develop knights and bishops early
+
+Pick the BEST move. Reply with ONLY the move (e.g., e2e4).`;
 
         console.log('Sending to LLM:', prompt);
 
@@ -80,7 +105,7 @@ Choose the best move from the legal moves list. Reply with ONLY the move (e.g., 
                     messages: [
                         { 
                             role: 'system', 
-                            content: 'You are a chess engine. Analyze the board and pick the best legal move. Reply with ONLY the move notation like e2e4 or g1f3. Nothing else.' 
+                            content: 'You are a chess grandmaster. ALWAYS capture high-value pieces when possible. Queen=9pts, Rook=5pts, Bishop/Knight=3pts. Reply with ONLY one move like e2e4.' 
                         },
                         { role: 'user', content: prompt }
                     ],
@@ -164,6 +189,95 @@ Choose the best move from the legal moves list. Reply with ONLY the move (e.g., 
             m.fromRow === fromRow && m.fromCol === fromCol &&
             m.toRow === toRow && m.toCol === toCol
         );
+    }
+    
+    analyzeCapturesAndThreats(game, validMoves, color) {
+        const pieceValues = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 0 };
+        const pieceNames = { pawn: 'Pawn', knight: 'Knight', bishop: 'Bishop', rook: 'Rook', queen: 'Queen', king: 'King' };
+        const cols = 'abcdefgh';
+        
+        // Find all capture moves
+        const captures = [];
+        for (const move of validMoves) {
+            const targetPiece = game.board[move.toRow][move.toCol];
+            if (targetPiece && targetPiece.color !== color) {
+                const moveNotation = `${cols[move.fromCol]}${8 - move.fromRow}${cols[move.toCol]}${8 - move.toRow}`;
+                const value = pieceValues[targetPiece.type];
+                captures.push({
+                    move: moveNotation,
+                    piece: pieceNames[targetPiece.type],
+                    value: value
+                });
+            }
+        }
+        
+        // Sort captures by value (highest first)
+        captures.sort((a, b) => b.value - a.value);
+        
+        if (captures.length === 0) {
+            return 'CAPTURES AVAILABLE: None';
+        }
+        
+        const captureList = captures.map(c => `${c.move} captures ${c.piece} (${c.value} pts)`).join(', ');
+        return `CAPTURES AVAILABLE: ${captureList}\n⚠️ STRONGLY PREFER capturing the highest value piece!`;
+    }
+    
+    // Find the best capture move (highest value piece)
+    findBestCapture(game, validMoves, color) {
+        const pieceValues = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 100 };
+        const pieceNames = { pawn: 'Pawn', knight: 'Knight', bishop: 'Bishop', rook: 'Rook', queen: 'Queen', king: 'King' };
+        const cols = 'abcdefgh';
+        
+        let bestCapture = null;
+        let bestValue = 0;
+        
+        for (const move of validMoves) {
+            const targetPiece = game.board[move.toRow][move.toCol];
+            if (targetPiece && targetPiece.color !== color) {
+                const value = pieceValues[targetPiece.type];
+                if (value > bestValue) {
+                    bestValue = value;
+                    const moveNotation = `${cols[move.fromCol]}${8 - move.fromRow}${cols[move.toCol]}${8 - move.toRow}`;
+                    bestCapture = {
+                        move: move,
+                        notation: moveNotation,
+                        piece: pieceNames[targetPiece.type],
+                        value: value
+                    };
+                }
+            }
+        }
+        
+        return bestCapture;
+    }
+    
+    // Find a move that gives check
+    findCheckMove(game, validMoves, color) {
+        const cols = 'abcdefgh';
+        
+        for (const move of validMoves) {
+            // Simulate the move
+            const originalPiece = game.board[move.toRow][move.toCol];
+            const movingPiece = game.board[move.fromRow][move.fromCol];
+            
+            game.board[move.toRow][move.toCol] = movingPiece;
+            game.board[move.fromRow][move.fromCol] = null;
+            
+            // Check if opponent is now in check
+            const opponentColor = color === 'white' ? 'black' : 'white';
+            const givesCheck = game.isInCheck(opponentColor);
+            
+            // Undo the move
+            game.board[move.fromRow][move.fromCol] = movingPiece;
+            game.board[move.toRow][move.toCol] = originalPiece;
+            
+            if (givesCheck) {
+                const moveNotation = `${cols[move.fromCol]}${8 - move.fromRow}${cols[move.toCol]}${8 - move.toRow}`;
+                return { move: move, notation: moveNotation };
+            }
+        }
+        
+        return null;
     }
     
     selectRandomMove(validMoves) {
