@@ -1,5 +1,9 @@
 # Chess Game
 
+[![Deploy to GitHub Pages](https://github.com/roryp/cursor/actions/workflows/deploy.yml/badge.svg)](https://github.com/roryp/cursor/actions/workflows/deploy.yml)
+
+**[▶️ Play Now](https://roryp.github.io/cursor/)**
+
 Simple in-browser chess board with move validation, move history, board flip, and famous game replays.
 
 ## Features
