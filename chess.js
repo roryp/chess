@@ -1,6 +1,156 @@
 // Chess Game with Famous Game Recaps and AI Players
 
-// Chess AI Class using heuristic evaluation
+// Foundry Local API configuration
+// When running with proxy-server.js, uses /api endpoint
+// Falls back to random moves when Foundry is unavailable
+const FOUNDRY_LOCAL_ENDPOINT = '/api';  // Proxied through our server
+const FOUNDRY_MODEL = 'phi-3.5-mini-instruct-trtrtx-gpu:1';  // Full model ID required
+
+// LLM-based Chess AI using Foundry Local
+class FoundryChessAI {
+    constructor() {
+        this.endpoint = FOUNDRY_LOCAL_ENDPOINT;
+        this.model = FOUNDRY_MODEL;
+        this.available = true;  // Track if API is available
+    }
+    
+    formatBoard(board) {
+        const pieceSymbols = {
+            white: { king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: 'P' },
+            black: { king: 'k', queen: 'q', rook: 'r', bishop: 'b', knight: 'n', pawn: 'p' }
+        };
+        
+        let boardStr = '  a b c d e f g h\n';
+        for (let row = 0; row < 8; row++) {
+            boardStr += `${8 - row} `;
+            for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (piece) {
+                    boardStr += pieceSymbols[piece.color][piece.type] + ' ';
+                } else {
+                    boardStr += '. ';
+                }
+            }
+            boardStr += `${8 - row}\n`;
+        }
+        boardStr += '  a b c d e f g h';
+        return boardStr;
+    }
+    
+    formatMoveList(moves) {
+        return moves.map(m => {
+            const cols = 'abcdefgh';
+            return `${cols[m.fromCol]}${8 - m.fromRow}${cols[m.toCol]}${8 - m.toRow}`;
+        }).join(', ');
+    }
+    
+    async getBestMove(game, color, validMoves) {
+        if (validMoves.length === 0) return null;
+        if (validMoves.length === 1) return validMoves[0];
+        
+        // If API was previously unavailable, use random fallback
+        if (!this.available) {
+            return this.selectRandomMove(validMoves);
+        }
+        
+        const boardStr = this.formatBoard(game.board);
+        const movesStr = this.formatMoveList(validMoves);
+        const moveHistory = game.moveHistory.slice(-10).join(', ') || 'None';
+        
+        const prompt = `You are a chess grandmaster. Analyze this position and choose the best move.
+
+Current board (uppercase=White, lowercase=Black):
+${boardStr}
+
+You are playing as ${color.toUpperCase()}.
+Recent moves: ${moveHistory}
+
+Legal moves available: ${movesStr}
+
+IMPORTANT: Respond with ONLY the move in format like "e2e4" or "g1f3". No explanation, just the move notation.`;
+
+        try {
+            const response = await fetch(`${this.endpoint}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: this.model,
+                    messages: [
+                        { 
+                            role: 'system', 
+                            content: 'You are a chess grandmaster AI. When asked for a move, respond with ONLY the move in algebraic notation (e.g., e2e4). No explanations or other text.' 
+                        },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 50
+                })
+            });
+            
+            if (!response.ok) {
+                console.warn('Foundry API not available, using random moves');
+                this.available = false;
+                return this.selectRandomMove(validMoves);
+            }
+            
+            const data = await response.json();
+            const moveText = data.choices[0]?.message?.content?.trim() || '';
+            
+            // Extract move from response (handle reasoning models that may include <think> tags)
+            const cleanMove = this.extractMove(moveText, validMoves);
+            
+            if (cleanMove) {
+                console.log(`LLM selected move: ${cleanMove.notation}`);
+                return cleanMove.move;
+            }
+            
+            console.log('LLM response did not match valid moves, selecting random:', moveText);
+            return this.selectRandomMove(validMoves);
+            
+        } catch (error) {
+            console.warn('Foundry Local unavailable, using random moves');
+            this.available = false;
+            return this.selectRandomMove(validMoves);
+        }
+    }
+    
+    extractMove(text, validMoves) {
+        // Remove thinking tags if present (for reasoning models)
+        let cleanText = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        
+        // Try to find a move pattern in the text
+        const movePattern = /\b([a-h][1-8][a-h][1-8])\b/g;
+        const matches = [...cleanText.matchAll(movePattern)];
+        
+        for (const match of matches) {
+            const notation = match[1];
+            const fromCol = notation.charCodeAt(0) - 97;
+            const fromRow = 8 - parseInt(notation[1]);
+            const toCol = notation.charCodeAt(2) - 97;
+            const toRow = 8 - parseInt(notation[3]);
+            
+            // Find matching valid move
+            const validMove = validMoves.find(m => 
+                m.fromRow === fromRow && m.fromCol === fromCol &&
+                m.toRow === toRow && m.toCol === toCol
+            );
+            
+            if (validMove) {
+                return { move: validMove, notation };
+            }
+        }
+        
+        return null;
+    }
+    
+    selectRandomMove(validMoves) {
+        return validMoves[Math.floor(Math.random() * validMoves.length)];
+    }
+}
+
+// Chess AI Class using heuristic evaluation (fallback)
 class ChessAI {
     constructor(difficulty = 'medium') {
         this.difficulty = difficulty;
@@ -492,8 +642,10 @@ class ChessGame {
         
         // AI Settings
         this.ai = new ChessAI('medium');
-        this.whitePlayer = 'human';  // 'human' or 'ai'
-        this.blackPlayer = 'human';  // 'human' or 'ai'
+        this.foundryAI = new FoundryChessAI();
+        this.useFoundryAI = true;  // Use LLM-based AI by default
+        this.whitePlayer = 'human';  // 'human' or 'ai-*'
+        this.blackPlayer = 'human';  // 'human' or 'ai-*'
         this.aiDelay = 500;
         this.aiThinking = false;
         this.gameOver = false;
@@ -636,19 +788,16 @@ class ChessGame {
         if (statusElement) {
             const whiteIsAI = this.whitePlayer.startsWith('ai');
             const blackIsAI = this.blackPlayer.startsWith('ai');
+            const aiType = this.useFoundryAI ? '🧠 Phi-4' : '🤖 Minimax';
             
             if (whiteIsAI && blackIsAI) {
-                const whiteDiff = this.getAIDifficulty(this.whitePlayer);
-                const blackDiff = this.getAIDifficulty(this.blackPlayer);
-                statusElement.textContent = `🤖 AI (${whiteDiff}) vs AI (${blackDiff}) - Watch the game unfold!`;
+                statusElement.textContent = `${aiType} AI vs AI - Watch the game unfold!`;
                 statusElement.className = 'ai-status ai-vs-ai';
             } else if (whiteIsAI) {
-                const diff = this.getAIDifficulty(this.whitePlayer);
-                statusElement.textContent = `🤖 AI (${diff}) plays White`;
+                statusElement.textContent = `${aiType} AI plays White`;
                 statusElement.className = 'ai-status ai-white';
             } else if (blackIsAI) {
-                const diff = this.getAIDifficulty(this.blackPlayer);
-                statusElement.textContent = `🤖 AI (${diff}) plays Black`;
+                statusElement.textContent = `${aiType} AI plays Black`;
                 statusElement.className = 'ai-status ai-black';
             } else {
                 statusElement.textContent = '👤 Human vs Human';
@@ -656,7 +805,7 @@ class ChessGame {
             }
             
             if (this.aiThinking) {
-                statusElement.textContent += ' (Thinking...)';
+                statusElement.textContent += this.useFoundryAI ? ' (Phi-4 thinking...)' : ' (Thinking...)';
             }
         }
     }
@@ -682,21 +831,39 @@ class ChessGame {
         
         await new Promise(resolve => setTimeout(resolve, this.aiDelay));
         
-        // Set difficulty for current player
+        let move = null;
+        
+        // Get all valid moves first (needed for both AI types)
         this.ai.setDifficulty(this.getCurrentPlayerDifficulty());
+        const validMoves = this.ai.getAllValidMoves(this, this.currentTurn);
         
-        const move = this.ai.getBestMove(this, this.currentTurn);
-        
-        if (move) {
-            this.makeMove(move.fromRow, move.fromCol, move.toRow, move.toCol);
-            this.renderBoard();
-        } else {
+        if (validMoves.length === 0) {
             // No valid moves - game over
             this.gameOver = true;
+            this.aiThinking = false;
+            this.updateAIStatus();
             const statusElement = document.getElementById('game-status');
             if (statusElement) {
                 statusElement.textContent = `Game Over! ${this.currentTurn === 'white' ? 'Black' : 'White'} wins!`;
             }
+            return;
+        }
+        
+        // Use Foundry AI (LLM) or fallback to heuristic AI
+        if (this.useFoundryAI) {
+            try {
+                move = await this.foundryAI.getBestMove(this, this.currentTurn, validMoves);
+            } catch (error) {
+                console.error('Foundry AI error, falling back to heuristic:', error);
+                move = this.ai.getBestMove(this, this.currentTurn);
+            }
+        } else {
+            move = this.ai.getBestMove(this, this.currentTurn);
+        }
+        
+        if (move) {
+            this.makeMove(move.fromRow, move.fromCol, move.toRow, move.toCol);
+            this.renderBoard();
         }
         
         this.aiThinking = false;

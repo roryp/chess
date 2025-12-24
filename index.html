@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Game</title>
     <link rel="stylesheet" href="chess.css">
-    <script type="module">
-        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1';
-        window.transformersPipeline = pipeline;
-    </script>
 </head>
 <body>
     <div class="game-container">
@@ -23,24 +19,20 @@
         </header>
         
         <div class="ai-settings" id="ai-settings">
-            <h3>🤖 AI Player Settings</h3>
+            <h3>🧠 AI Player Settings (Phi-3.5-mini)</h3>
             <div class="ai-options">
                 <div class="player-option">
                     <label for="white-player">White Player:</label>
                     <select id="white-player" class="player-select">
                         <option value="human">Human</option>
-                        <option value="ai-easy">AI (Easy)</option>
-                        <option value="ai-medium">AI (Medium)</option>
-                        <option value="ai-hard">AI (Hard)</option>
+                        <option value="ai">AI (Phi-4)</option>
                     </select>
                 </div>
                 <div class="player-option">
                     <label for="black-player">Black Player:</label>
                     <select id="black-player" class="player-select">
                         <option value="human">Human</option>
-                        <option value="ai-easy">AI (Easy)</option>
-                        <option value="ai-medium">AI (Medium)</option>
-                        <option value="ai-hard">AI (Hard)</option>
+                        <option value="ai">AI (Phi-4)</option>
                     </select>
                 </div>
                 <div class="player-option">
@@ -48,7 +40,9 @@
                     <input type="number" id="ai-delay" value="300" min="100" max="3000" step="100" class="ai-delay-input">
                 </div>
             </div>
-            <div class="ai-status" id="ai-status"></div>
+            <div class="ai-status" id="ai-status">
+                <span class="foundry-badge">🔌 Powered by Foundry Local</span>
+            </div>
         </div>
         
         <div class="chess-board-container">
