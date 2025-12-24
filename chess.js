@@ -4,7 +4,7 @@
 // When running with proxy-server.js, uses /api endpoint
 // Falls back to random moves when Foundry is unavailable
 const FOUNDRY_LOCAL_ENDPOINT = '/api';  // Proxied through our server
-const FOUNDRY_MODEL = 'phi-3.5-mini-instruct-trtrtx-gpu:1';  // Full model ID required
+const FOUNDRY_MODEL = 'Phi-4-mini-instruct-generic-gpu:5';  // Phi-4-mini (direct, not reasoning)
 
 // LLM-based Chess AI using Foundry Local
 class FoundryChessAI {
@@ -55,19 +55,15 @@ class FoundryChessAI {
         
         const boardStr = this.formatBoard(game.board);
         const movesStr = this.formatMoveList(validMoves);
-        const moveHistory = game.moveHistory.slice(-10).join(', ') || 'None';
         
-        const prompt = `You are a chess grandmaster. Analyze this position and choose the best move.
-
-Current board (uppercase=White, lowercase=Black):
+        // Simple, direct prompt for faster response
+        const prompt = `Chess position (uppercase=White, lowercase=Black):
 ${boardStr}
 
-You are playing as ${color.toUpperCase()}.
-Recent moves: ${moveHistory}
+Playing as: ${color.toUpperCase()}
+Legal moves: ${movesStr}
 
-Legal moves available: ${movesStr}
-
-IMPORTANT: Respond with ONLY the move in format like "e2e4" or "g1f3". No explanation, just the move notation.`;
+Pick the best move. Reply with just the move like: e2e4`;
 
         try {
             const response = await fetch(`${this.endpoint}/chat/completions`, {
@@ -80,25 +76,25 @@ IMPORTANT: Respond with ONLY the move in format like "e2e4" or "g1f3". No explan
                     messages: [
                         { 
                             role: 'system', 
-                            content: 'You are a chess grandmaster AI. When asked for a move, respond with ONLY the move in algebraic notation (e.g., e2e4). No explanations or other text.' 
+                            content: 'You are a chess engine. Reply with only a move in format like e2e4. No explanation.' 
                         },
                         { role: 'user', content: prompt }
                     ],
-                    temperature: 0.3,
-                    max_tokens: 50
+                    temperature: 0.1,
+                    max_tokens: 500
                 })
             });
             
             if (!response.ok) {
-                console.warn('Foundry API not available, using random moves');
-                this.available = false;
+                console.warn('Foundry API error:', response.status);
                 return this.selectRandomMove(validMoves);
             }
             
             const data = await response.json();
             const moveText = data.choices[0]?.message?.content?.trim() || '';
+            console.log('LLM response:', moveText.substring(0, 200));
             
-            // Extract move from response (handle reasoning models that may include <think> tags)
+            // Extract move from response
             const cleanMove = this.extractMove(moveText, validMoves);
             
             if (cleanMove) {
@@ -106,43 +102,64 @@ IMPORTANT: Respond with ONLY the move in format like "e2e4" or "g1f3". No explan
                 return cleanMove.move;
             }
             
-            console.log('LLM response did not match valid moves, selecting random:', moveText);
+            console.log('LLM response did not match valid moves, selecting random');
             return this.selectRandomMove(validMoves);
             
         } catch (error) {
-            console.warn('Foundry Local unavailable, using random moves');
-            this.available = false;
+            console.warn('Foundry Local error:', error.message);
             return this.selectRandomMove(validMoves);
         }
     }
     
     extractMove(text, validMoves) {
         // Remove thinking tags if present (for reasoning models)
-        let cleanText = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        // Handle incomplete </think> tags too
+        let cleanText = text.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
         
-        // Try to find a move pattern in the text
+        // Also look in the full text in case move is in thinking
+        const fullText = text;
+        
+        // Try to find a move pattern - look for MOVE: first
+        const movePrefix = /MOVE:\s*([a-h][1-8][a-h][1-8])/i;
+        const prefixMatch = cleanText.match(movePrefix) || fullText.match(movePrefix);
+        if (prefixMatch) {
+            const notation = prefixMatch[1].toLowerCase();
+            const move = this.findValidMove(notation, validMoves);
+            if (move) return { move, notation };
+        }
+        
+        // Try to find any move pattern
         const movePattern = /\b([a-h][1-8][a-h][1-8])\b/g;
-        const matches = [...cleanText.matchAll(movePattern)];
         
+        // Check clean text first
+        const matches = [...cleanText.matchAll(movePattern)];
         for (const match of matches) {
-            const notation = match[1];
-            const fromCol = notation.charCodeAt(0) - 97;
-            const fromRow = 8 - parseInt(notation[1]);
-            const toCol = notation.charCodeAt(2) - 97;
-            const toRow = 8 - parseInt(notation[3]);
-            
-            // Find matching valid move
-            const validMove = validMoves.find(m => 
-                m.fromRow === fromRow && m.fromCol === fromCol &&
-                m.toRow === toRow && m.toCol === toCol
-            );
-            
-            if (validMove) {
-                return { move: validMove, notation };
-            }
+            const notation = match[1].toLowerCase();
+            const move = this.findValidMove(notation, validMoves);
+            if (move) return { move, notation };
+        }
+        
+        // Check full text as fallback
+        const fullMatches = [...fullText.matchAll(movePattern)];
+        for (const match of fullMatches) {
+            const notation = match[1].toLowerCase();
+            const move = this.findValidMove(notation, validMoves);
+            if (move) return { move, notation };
         }
         
         return null;
+    }
+    
+    findValidMove(notation, validMoves) {
+        const fromCol = notation.charCodeAt(0) - 97;
+        const fromRow = 8 - parseInt(notation[1]);
+        const toCol = notation.charCodeAt(2) - 97;
+        const toRow = 8 - parseInt(notation[3]);
+        
+        return validMoves.find(m => 
+            m.fromRow === fromRow && m.fromCol === fromCol &&
+            m.toRow === toRow && m.toCol === toCol
+        );
     }
     
     selectRandomMove(validMoves) {
@@ -751,9 +768,8 @@ class ChessGame {
             whiteSelect.addEventListener('change', (e) => {
                 this.whitePlayer = e.target.value;
                 this.updateAIStatus();
-                if (this.currentTurn === 'white' && this.whitePlayer.startsWith('ai') && !this.isReplaying && !this.gameOver) {
-                    this.triggerAIMove();
-                }
+                // Trigger AI move if it's currently an AI's turn
+                this.checkAndTriggerAI();
             });
         }
         
@@ -761,9 +777,8 @@ class ChessGame {
             blackSelect.addEventListener('change', (e) => {
                 this.blackPlayer = e.target.value;
                 this.updateAIStatus();
-                if (this.currentTurn === 'black' && this.blackPlayer.startsWith('ai') && !this.isReplaying && !this.gameOver) {
-                    this.triggerAIMove();
-                }
+                // Trigger AI move if it's currently an AI's turn
+                this.checkAndTriggerAI();
             });
         }
         
@@ -774,6 +789,17 @@ class ChessGame {
         }
         
         this.updateAIStatus();
+    }
+    
+    checkAndTriggerAI() {
+        if (this.isReplaying || this.gameOver || this.aiThinking) return;
+        
+        const currentPlayerIsAI = (this.currentTurn === 'white' && this.whitePlayer.startsWith('ai')) ||
+                                   (this.currentTurn === 'black' && this.blackPlayer.startsWith('ai'));
+        
+        if (currentPlayerIsAI) {
+            setTimeout(() => this.triggerAIMove(), 100);
+        }
     }
     
     getAIDifficulty(playerSetting) {
@@ -1416,10 +1442,8 @@ class ChessGame {
             statusElement.textContent = '';
         }
         
-        // If white is AI, trigger AI move
-        if (this.whitePlayer === 'ai') {
-            setTimeout(() => this.triggerAIMove(), 100);
-        }
+        // If current player is AI, trigger AI move
+        this.checkAndTriggerAI();
     }
     
     flipBoard() {
