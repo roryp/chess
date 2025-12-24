@@ -475,6 +475,12 @@ class ChessGame {
     }
     
     executeMoveNotation(notation) {
+        // Validate notation format (e.g., "e2e4")
+        if (!notation || notation.length < 4 || !/^[a-h][1-8][a-h][1-8]$/.test(notation)) {
+            console.warn(`Invalid move notation: ${notation}`);
+            return false;
+        }
+        
         // Parse notation like "e2e4"
         const fromCol = notation.charCodeAt(0) - 97; // a=0, b=1, etc.
         const fromRow = 8 - parseInt(notation[1]);

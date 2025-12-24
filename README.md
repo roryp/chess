@@ -16,13 +16,19 @@ Simple in-browser chess board with move validation, move history, board flip, an
 4. Optional: choose a famous game from the dropdown and click **Load Game** to watch the replay.
 
 ## Screenshots
-Add your screenshots to the `assets` folder with the names below (or update the paths to match your files).
+
+### Chess Board
+The main game board with all pieces in starting position:
 
 ![Chess board view](assets/chess-board.png)
+
+### Famous Game Replay
+Watch historic games like "The Immortal Game" with play controls:
+
 ![Famous game replay](assets/chess-replay.png)
 
 ## Notes
 - No build step is required; everything runs client-side.
-- Debug instrumentation sends logs to `http://127.0.0.1:7242/ingest/...` and writes to `.cursor/debug.log` (used during debugging). Remove it after finishing verification if desired.
+- Pure vanilla JavaScript with no external dependencies.
 
 

@@ -1,0 +1,24 @@
+{
+  "name": "cursor",
+  "version": "1.0.0",
+  "description": "Simple in-browser chess board with move validation, move history, board flip, and famous game replays.",
+  "main": "chess.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roryp/cursor.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/roryp/cursor/issues"
+  },
+  "homepage": "https://github.com/roryp/cursor#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0"
+  }
+}
