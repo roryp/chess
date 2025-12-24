@@ -22,10 +22,13 @@ A feature-rich, browser-based chess game with AI opponents, move validation, fam
 
 ### 🤖 AI Player
 - **Intelligent Move Selection**: Uses minimax algorithm with alpha-beta pruning
-- **Three Difficulty Levels**:
+- **Per-Player Difficulty Settings**:
   - 🟢 **Easy** - 1-ply search depth, occasional random moves
   - 🟡 **Medium** - 2-ply search depth, balanced play
   - 🔴 **Hard** - 3-ply search depth, strongest evaluation
+- **Mix Difficulties**: Set White to Hard and Black to Easy for decisive games!
+- **Endgame Intelligence**: Deeper search in endgame, pushes enemy king to corner
+- **Check/Checkmate Priority**: AI actively seeks check and checkmate positions
 - **Position Evaluation**: Piece values + piece-square tables for strategic positioning
 - **Repetition Avoidance**: AI penalizes moves that would repeat positions
 - **Configurable Move Delay**: 100ms to 3000ms for comfortable viewing
@@ -37,13 +40,17 @@ A feature-rich, browser-based chess game with AI opponents, move validation, fam
 
 ### ♔ Chess Features
 - ✅ Full move validation for all pieces (King, Queen, Rook, Bishop, Knight, Pawn)
+- ✅ **Check Detection** - Shows when a king is under attack
+- ✅ **Checkmate Detection** - Game ends with "♚ Checkmate!" announcement
+- ✅ **Stalemate Detection** - Recognizes when a player has no legal moves
+- ✅ **Pawn Promotion** - Pawns automatically promote to Queen on reaching the last rank
 - ✅ Pawn double-move from starting position
 - ✅ Diagonal pawn captures
 - ✅ Path blocking detection for sliding pieces
 - ✅ Move history with algebraic notation (e.g., `e2e4`)
 - ✅ Board flip to view from either player's perspective
 - ✅ Visual piece selection highlighting
-- ✅ Turn indicator with player type (👤 Human / 🤖 AI)
+- ✅ Turn indicator with player type (👤 Human / 🤖 AI) and check status
 
 ### 🏆 Famous Games Library
 Replay legendary chess matches move-by-move:
@@ -219,8 +226,8 @@ Contributions are welcome! Here are some ideas:
 
 - [ ] Add castling support
 - [ ] Add en passant captures
-- [ ] Add pawn promotion
-- [ ] Add check/checkmate detection
+- [x] ~~Add pawn promotion~~ ✅ Implemented!
+- [x] ~~Add check/checkmate detection~~ ✅ Implemented!
 - [x] ~~Add draw detection (stalemate, 50-move rule, repetition)~~ ✅ Implemented!
 - [ ] Add move undo/redo
 - [ ] Add PGN import/export
