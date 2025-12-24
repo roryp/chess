@@ -96,6 +96,8 @@ class ChessAI {
     
     evaluateBoard(board, color) {
         let score = 0;
+        let myMobility = 0;
+        let oppMobility = 0;
         
         for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
@@ -103,6 +105,14 @@ class ChessAI {
                 if (piece) {
                     let pieceScore = this.pieceValues[piece.type];
                     pieceScore += this.getPositionValue(piece, row, col);
+                    
+                    // Add advancement bonus (pieces further into enemy territory)
+                    if (piece.type !== 'king') {
+                        const advanceBonus = piece.color === 'white' 
+                            ? (7 - row) * 3  // White pieces get bonus for lower row numbers
+                            : row * 3;        // Black pieces get bonus for higher row numbers
+                        pieceScore += advanceBonus;
+                    }
                     
                     if (piece.color === color) {
                         score += pieceScore;
@@ -114,6 +124,35 @@ class ChessAI {
         }
         
         return score;
+    }
+    
+    // Evaluate a move's aggressiveness
+    evaluateMoveAggression(move, game) {
+        let bonus = 0;
+        
+        // Capture bonus - strongly prefer taking pieces
+        if (move.captured) {
+            bonus += this.pieceValues[move.captured.type] * 1.5;
+        }
+        
+        // Advancement bonus - reward pushing pieces forward
+        const isWhite = move.piece.color === 'white';
+        const advanceDirection = isWhite ? -1 : 1;
+        const advancement = (move.toRow - move.fromRow) * advanceDirection;
+        if (advancement > 0 && move.piece.type !== 'king') {
+            bonus += advancement * 15;
+        }
+        
+        // Center control bonus
+        const centerDistance = Math.abs(move.toRow - 3.5) + Math.abs(move.toCol - 3.5);
+        bonus += (7 - centerDistance) * 5;
+        
+        // Pawn push bonus (pawns should advance)
+        if (move.piece.type === 'pawn') {
+            bonus += advancement * 20;
+        }
+        
+        return bonus;
     }
     
     getPositionValue(piece, row, col) {
@@ -229,7 +268,7 @@ class ChessAI {
             return moves[Math.floor(Math.random() * moves.length)];
         }
         
-        // Evaluate all moves and filter out ones that would cause repetition
+        // Evaluate all moves with aggression and repetition penalties
         const evaluatedMoves = [];
         
         for (const move of moves) {
@@ -240,26 +279,48 @@ class ChessAI {
             const positionKey = game.getBoardPositionKey();
             const occurrences = game.countPositionOccurrences(positionKey);
             
-            // Penalize moves that would repeat a position
+            // Base score from board evaluation
             let score = this.evaluateBoard(game.board, color);
+            
+            // Add aggression bonus
+            score += this.evaluateMoveAggression(move, game);
+            
+            // HEAVY penalties for repetition - make repetition very undesirable
             if (occurrences >= 1) {
-                score -= 50;  // Penalty for first repetition
+                score -= 200;  // Significant penalty for first repetition
             }
             if (occurrences >= 2) {
-                score -= 500;  // Heavy penalty to avoid third repetition (draw)
+                score -= 10000;  // Massive penalty to avoid third repetition (draw)
+            }
+            
+            // Penalize moving the same piece back and forth
+            if (game.moveHistory.length >= 2) {
+                const lastMove = game.moveHistory[game.moveHistory.length - 1];
+                const prevMove = game.moveHistory[game.moveHistory.length - 2];
+                const currentMoveStr = `${String.fromCharCode(97 + move.fromCol)}${8 - move.fromRow}${String.fromCharCode(97 + move.toCol)}${8 - move.toRow}`;
+                
+                // Check if this move reverses the move from 2 turns ago
+                if (prevMove && currentMoveStr === this.reverseMove(prevMove)) {
+                    score -= 300;  // Penalty for reversing previous move
+                }
             }
             
             game.board = originalBoard;
             
-            evaluatedMoves.push({ move, score });
+            evaluatedMoves.push({ move, score, hasCapture: !!move.captured });
         }
         
-        // Sort by score descending and pick the best non-repetitive move
-        evaluatedMoves.sort((a, b) => b.score - a.score);
+        // Prioritize captures, then sort by score
+        evaluatedMoves.sort((a, b) => {
+            // Captures first if they're good
+            if (a.hasCapture && !b.hasCapture && a.score > 0) return -1;
+            if (b.hasCapture && !a.hasCapture && b.score > 0) return 1;
+            return b.score - a.score;
+        });
         
-        // Use full minimax for the best candidates (top 5 moves that avoid repetition)
-        const candidates = evaluatedMoves.slice(0, 5);
-        let bestMove = null;
+        // Use full minimax for the best candidates
+        const candidates = evaluatedMoves.slice(0, Math.min(8, evaluatedMoves.length));
+        let bestMoves = [];  // Track all moves with the best score
         let bestScore = -Infinity;
         
         for (const { move } of candidates) {
@@ -272,18 +333,36 @@ class ChessAI {
             const positionKey = game.getBoardPositionKey();
             const occurrences = game.countPositionOccurrences(positionKey);
             let adjustedScore = result.score;
-            if (occurrences >= 1) adjustedScore -= 50;
-            if (occurrences >= 2) adjustedScore -= 500;
+            
+            // Add aggression bonus to minimax result
+            adjustedScore += this.evaluateMoveAggression(move, game);
+            
+            // Heavy penalties for repetition
+            if (occurrences >= 1) adjustedScore -= 200;
+            if (occurrences >= 2) adjustedScore -= 10000;
             
             game.board = originalBoard;
             
             if (adjustedScore > bestScore) {
                 bestScore = adjustedScore;
-                bestMove = move;
+                bestMoves = [move];
+            } else if (adjustedScore === bestScore) {
+                bestMoves.push(move);  // Add to list of equally good moves
             }
         }
         
-        return bestMove || evaluatedMoves[0]?.move;
+        // Random selection among equally-scored moves to add variety
+        if (bestMoves.length > 0) {
+            return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+        }
+        
+        return evaluatedMoves[0]?.move;
+    }
+    
+    // Helper to reverse a move notation (e.g., "e2e4" -> "e4e2")
+    reverseMove(moveNotation) {
+        if (moveNotation.length !== 4) return '';
+        return moveNotation.slice(2, 4) + moveNotation.slice(0, 2);
     }
 }
 
