@@ -161,7 +161,6 @@ test.describe('AI Player Features', () => {
         // Check all player selectors exist
         await expect(page.locator('#white-player')).toBeVisible();
         await expect(page.locator('#black-player')).toBeVisible();
-        await expect(page.locator('#ai-difficulty')).toBeVisible();
         await expect(page.locator('#ai-delay')).toBeVisible();
     });
 
@@ -174,55 +173,55 @@ test.describe('AI Player Features', () => {
         const blackPlayer = page.locator('#black-player');
         await expect(blackPlayer).toHaveValue('human');
         
-        // Difficulty should default to medium
-        const difficulty = page.locator('#ai-difficulty');
-        await expect(difficulty).toHaveValue('medium');
-        
-        // Delay should default to 500
+        // Delay should default to 300
         const delay = page.locator('#ai-delay');
-        await expect(delay).toHaveValue('500');
+        await expect(delay).toHaveValue('300');
     });
 
     test('should update AI status when selecting AI for black', async ({ page }) => {
         // Select AI for black player
         const blackPlayer = page.locator('#black-player');
-        await blackPlayer.selectOption('ai');
+        await blackPlayer.selectOption('ai-medium');
         
         // AI status should update
         const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI plays Black');
+        await expect(aiStatus).toContainText('AI');
+        await expect(aiStatus).toContainText('Black');
     });
 
     test('should update AI status when selecting AI for white', async ({ page }) => {
         // Select AI for white player
         const whitePlayer = page.locator('#white-player');
-        await whitePlayer.selectOption('ai');
+        await whitePlayer.selectOption('ai-medium');
         
         // AI status should update
         const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI plays White');
+        await expect(aiStatus).toContainText('AI');
+        await expect(aiStatus).toContainText('White');
     });
 
     test('should show AI vs AI mode status', async ({ page }) => {
         // Select AI for both players
-        await page.locator('#white-player').selectOption('ai');
-        await page.locator('#black-player').selectOption('ai');
+        await page.locator('#white-player').selectOption('ai-hard');
+        await page.locator('#black-player').selectOption('ai-easy');
         
         // AI status should show AI vs AI mode
         const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI vs AI Mode');
+        await expect(aiStatus).toContainText('AI');
+        await expect(aiStatus).toContainText('vs');
     });
 
-    test('should allow changing AI difficulty', async ({ page }) => {
-        const difficulty = page.locator('#ai-difficulty');
+    test('should allow different AI difficulties per player', async ({ page }) => {
+        // Select hard AI for white
+        await page.locator('#white-player').selectOption('ai-hard');
         
-        // Change to easy
-        await difficulty.selectOption('easy');
-        await expect(difficulty).toHaveValue('easy');
+        // Select easy AI for black
+        await page.locator('#black-player').selectOption('ai-easy');
         
-        // Change to hard
-        await difficulty.selectOption('hard');
-        await expect(difficulty).toHaveValue('hard');
+        // Check status shows both difficulties
+        const aiStatus = page.locator('#ai-status');
+        await expect(aiStatus).toContainText('hard');
+        await expect(aiStatus).toContainText('easy');
     });
 
     test('should allow changing AI move delay', async ({ page }) => {
@@ -235,7 +234,7 @@ test.describe('AI Player Features', () => {
 
     test('AI should make a move when set as black after human moves', async ({ page }) => {
         // Set black as AI with short delay for testing
-        await page.locator('#black-player').selectOption('ai');
+        await page.locator('#black-player').selectOption('ai-easy');
         await page.locator('#ai-delay').fill('100');
         
         // Make a move as white (human)
@@ -259,8 +258,8 @@ test.describe('AI Player Features', () => {
     test('AI vs AI game should make multiple moves', async ({ page }) => {
         // Set both players as AI with short delay
         await page.locator('#ai-delay').fill('100');
-        await page.locator('#white-player').selectOption('ai');
-        await page.locator('#black-player').selectOption('ai');
+        await page.locator('#white-player').selectOption('ai-easy');
+        await page.locator('#black-player').selectOption('ai-easy');
         
         // Wait for several moves
         await page.waitForTimeout(2500);
@@ -274,7 +273,7 @@ test.describe('AI Player Features', () => {
     test('should not allow human moves during AI turn', async ({ page }) => {
         // Set white as AI
         await page.locator('#ai-delay').fill('2000'); // Long delay to test
-        await page.locator('#white-player').selectOption('ai');
+        await page.locator('#white-player').selectOption('ai-easy');
         
         // Try to click on a piece immediately - should not select
         const e2Square = page.locator('.square[data-row="6"][data-col="4"]');
@@ -287,8 +286,8 @@ test.describe('AI Player Features', () => {
     test('should reset AI game state on new game', async ({ page }) => {
         // Set up AI vs AI game
         await page.locator('#ai-delay').fill('100');
-        await page.locator('#white-player').selectOption('ai');
-        await page.locator('#black-player').selectOption('ai');
+        await page.locator('#white-player').selectOption('ai-easy');
+        await page.locator('#black-player').selectOption('ai-easy');
         
         // Wait for some moves
         await page.waitForTimeout(1000);
@@ -307,12 +306,12 @@ test.describe('AI Player Features', () => {
         // Move history may have new AI moves starting, but should restart
         // Game should be running again with AI
         const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI vs AI Mode');
+        await expect(aiStatus).toContainText('AI');
     });
 
     test('turn indicator should show AI emoji when AI is playing', async ({ page }) => {
         // Set black as AI
-        await page.locator('#black-player').selectOption('ai');
+        await page.locator('#black-player').selectOption('ai-easy');
         await page.locator('#ai-delay').fill('100');
         
         // Make a human move

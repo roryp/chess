@@ -85,19 +85,32 @@ class ChessAI {
         this.difficulty = difficulty;
     }
     
-    getSearchDepth() {
+    getSearchDepth(pieceCount = 32) {
+        let baseDepth;
         switch (this.difficulty) {
-            case 'easy': return 1;
-            case 'medium': return 2;
-            case 'hard': return 3;
-            default: return 2;
+            case 'easy': baseDepth = 1; break;
+            case 'medium': baseDepth = 2; break;
+            case 'hard': baseDepth = 3; break;
+            default: baseDepth = 2;
         }
+        
+        // Increase depth in endgame (fewer pieces = can search deeper)
+        if (pieceCount <= 8) {
+            baseDepth += 2;  // Much deeper search in late endgame
+        } else if (pieceCount <= 12) {
+            baseDepth += 1;  // Deeper search in endgame
+        }
+        
+        return Math.min(baseDepth, 5);  // Cap at 5 to avoid too slow
     }
     
     evaluateBoard(board, color) {
         let score = 0;
-        let myMobility = 0;
-        let oppMobility = 0;
+        let myPieceCount = 0;
+        let oppPieceCount = 0;
+        let oppKingRow = -1, oppKingCol = -1;
+        let myKingRow = -1, myKingCol = -1;
+        const opponentColor = color === 'white' ? 'black' : 'white';
         
         for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
@@ -105,6 +118,17 @@ class ChessAI {
                 if (piece) {
                     let pieceScore = this.pieceValues[piece.type];
                     pieceScore += this.getPositionValue(piece, row, col);
+                    
+                    // Track kings
+                    if (piece.type === 'king') {
+                        if (piece.color === color) {
+                            myKingRow = row;
+                            myKingCol = col;
+                        } else {
+                            oppKingRow = row;
+                            oppKingCol = col;
+                        }
+                    }
                     
                     // Add advancement bonus (pieces further into enemy territory)
                     if (piece.type !== 'king') {
@@ -116,10 +140,25 @@ class ChessAI {
                     
                     if (piece.color === color) {
                         score += pieceScore;
+                        myPieceCount++;
                     } else {
                         score -= pieceScore;
+                        oppPieceCount++;
                     }
                 }
+            }
+        }
+        
+        // In endgame (few pieces), push opponent king to corner for checkmate
+        if (oppPieceCount <= 4 && oppKingRow >= 0) {
+            // Bonus for opponent king being near edge/corner
+            const kingEdgeDistance = Math.min(oppKingRow, 7 - oppKingRow, oppKingCol, 7 - oppKingCol);
+            score += (3 - kingEdgeDistance) * 30;  // Bonus for king near edge
+            
+            // Bonus for our king being close to opponent king (for mating)
+            if (myKingRow >= 0) {
+                const kingDistance = Math.abs(myKingRow - oppKingRow) + Math.abs(myKingCol - oppKingCol);
+                score += (14 - kingDistance) * 10;  // Closer is better
             }
         }
         
@@ -133,6 +172,22 @@ class ChessAI {
         // Capture bonus - strongly prefer taking pieces
         if (move.captured) {
             bonus += this.pieceValues[move.captured.type] * 1.5;
+            // Extra bonus for capturing with lower value piece
+            const valueDiff = this.pieceValues[move.captured.type] - this.pieceValues[move.piece.type];
+            if (valueDiff > 0) {
+                bonus += valueDiff * 0.5;
+            }
+        }
+        
+        // Check if this move gives check - HUGE bonus
+        const opponentColor = move.piece.color === 'white' ? 'black' : 'white';
+        if (game.isInCheck && game.isInCheck(opponentColor)) {
+            bonus += 500;  // Big bonus for giving check
+            
+            // Even bigger bonus if it might be checkmate
+            if (game.isCheckmate && game.isCheckmate(opponentColor)) {
+                bonus += 100000;  // Massive bonus for checkmate!
+            }
         }
         
         // Advancement bonus - reward pushing pieces forward
@@ -150,9 +205,36 @@ class ChessAI {
         // Pawn push bonus (pawns should advance)
         if (move.piece.type === 'pawn') {
             bonus += advancement * 20;
+            // Extra bonus for pawns close to promotion
+            const promotionRow = isWhite ? 0 : 7;
+            const distanceToPromotion = Math.abs(move.toRow - promotionRow);
+            if (distanceToPromotion <= 2) {
+                bonus += (3 - distanceToPromotion) * 100;  // Big bonus for promotion threat
+            }
+        }
+        
+        // King attack bonus - moves that attack squares near enemy king
+        const enemyKingPos = this.findKingPosition(game.board, opponentColor);
+        if (enemyKingPos) {
+            const distToKing = Math.abs(move.toRow - enemyKingPos.row) + Math.abs(move.toCol - enemyKingPos.col);
+            if (distToKing <= 2) {
+                bonus += (3 - distToKing) * 40;  // Bonus for attacking near king
+            }
         }
         
         return bonus;
+    }
+    
+    findKingPosition(board, color) {
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (piece && piece.type === 'king' && piece.color === color) {
+                    return { row, col };
+                }
+            }
+        }
+        return null;
     }
     
     getPositionValue(piece, row, col) {
@@ -200,8 +282,18 @@ class ChessAI {
     
     simulateMove(board, move) {
         const newBoard = board.map(row => row.map(cell => cell ? {...cell} : null));
-        newBoard[move.toRow][move.toCol] = newBoard[move.fromRow][move.fromCol];
+        const piece = newBoard[move.fromRow][move.fromCol];
+        newBoard[move.toRow][move.toCol] = piece;
         newBoard[move.fromRow][move.fromCol] = null;
+        
+        // Handle pawn promotion
+        if (piece && piece.type === 'pawn') {
+            const promotionRow = piece.color === 'white' ? 0 : 7;
+            if (move.toRow === promotionRow) {
+                newBoard[move.toRow][move.toCol] = { type: 'queen', color: piece.color };
+            }
+        }
+        
         return newBoard;
     }
     
@@ -214,7 +306,14 @@ class ChessAI {
         const moves = this.getAllValidMoves(game, currentColor);
         
         if (moves.length === 0) {
-            return { score: maximizing ? -Infinity : Infinity };
+            // No moves - either checkmate or stalemate
+            if (game.isInCheck && game.isInCheck(currentColor)) {
+                // Checkmate! Return huge score
+                return { score: maximizing ? -100000 - depth : 100000 + depth };
+            } else {
+                // Stalemate - draw
+                return { score: 0 };
+            }
         }
         
         let bestMove = null;
@@ -260,8 +359,19 @@ class ChessAI {
         }
     }
     
+    countPieces(board) {
+        let count = 0;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                if (board[row][col]) count++;
+            }
+        }
+        return count;
+    }
+    
     getBestMove(game, color) {
-        const depth = this.getSearchDepth();
+        const pieceCount = this.countPieces(game.board);
+        const depth = this.getSearchDepth(pieceCount);
         const moves = this.getAllValidMoves(game, color);
         
         if (moves.length === 0) return null;
@@ -483,14 +593,13 @@ class ChessGame {
     setupAIControls() {
         const whiteSelect = document.getElementById('white-player');
         const blackSelect = document.getElementById('black-player');
-        const difficultySelect = document.getElementById('ai-difficulty');
         const delayInput = document.getElementById('ai-delay');
         
         if (whiteSelect) {
             whiteSelect.addEventListener('change', (e) => {
                 this.whitePlayer = e.target.value;
                 this.updateAIStatus();
-                if (this.currentTurn === 'white' && this.whitePlayer === 'ai' && !this.isReplaying && !this.gameOver) {
+                if (this.currentTurn === 'white' && this.whitePlayer.startsWith('ai') && !this.isReplaying && !this.gameOver) {
                     this.triggerAIMove();
                 }
             });
@@ -500,39 +609,46 @@ class ChessGame {
             blackSelect.addEventListener('change', (e) => {
                 this.blackPlayer = e.target.value;
                 this.updateAIStatus();
-                if (this.currentTurn === 'black' && this.blackPlayer === 'ai' && !this.isReplaying && !this.gameOver) {
+                if (this.currentTurn === 'black' && this.blackPlayer.startsWith('ai') && !this.isReplaying && !this.gameOver) {
                     this.triggerAIMove();
                 }
             });
         }
         
-        if (difficultySelect) {
-            difficultySelect.addEventListener('change', (e) => {
-                this.ai.setDifficulty(e.target.value);
-                this.updateAIStatus();
-            });
-        }
-        
         if (delayInput) {
             delayInput.addEventListener('change', (e) => {
-                this.aiDelay = parseInt(e.target.value) || 500;
+                this.aiDelay = parseInt(e.target.value) || 300;
             });
         }
         
         this.updateAIStatus();
     }
     
+    getAIDifficulty(playerSetting) {
+        if (playerSetting === 'ai-easy') return 'easy';
+        if (playerSetting === 'ai-medium') return 'medium';
+        if (playerSetting === 'ai-hard') return 'hard';
+        return 'medium';
+    }
+    
     updateAIStatus() {
         const statusElement = document.getElementById('ai-status');
         if (statusElement) {
-            if (this.whitePlayer === 'ai' && this.blackPlayer === 'ai') {
-                statusElement.textContent = '🤖 AI vs AI Mode - Watch the game unfold!';
+            const whiteIsAI = this.whitePlayer.startsWith('ai');
+            const blackIsAI = this.blackPlayer.startsWith('ai');
+            
+            if (whiteIsAI && blackIsAI) {
+                const whiteDiff = this.getAIDifficulty(this.whitePlayer);
+                const blackDiff = this.getAIDifficulty(this.blackPlayer);
+                statusElement.textContent = `🤖 AI (${whiteDiff}) vs AI (${blackDiff}) - Watch the game unfold!`;
                 statusElement.className = 'ai-status ai-vs-ai';
-            } else if (this.whitePlayer === 'ai') {
-                statusElement.textContent = '🤖 AI plays White';
+            } else if (whiteIsAI) {
+                const diff = this.getAIDifficulty(this.whitePlayer);
+                statusElement.textContent = `🤖 AI (${diff}) plays White`;
                 statusElement.className = 'ai-status ai-white';
-            } else if (this.blackPlayer === 'ai') {
-                statusElement.textContent = '🤖 AI plays Black';
+            } else if (blackIsAI) {
+                const diff = this.getAIDifficulty(this.blackPlayer);
+                statusElement.textContent = `🤖 AI (${diff}) plays Black`;
                 statusElement.className = 'ai-status ai-black';
             } else {
                 statusElement.textContent = '👤 Human vs Human';
@@ -546,8 +662,16 @@ class ChessGame {
     }
     
     isCurrentPlayerAI() {
-        return (this.currentTurn === 'white' && this.whitePlayer === 'ai') ||
-               (this.currentTurn === 'black' && this.blackPlayer === 'ai');
+        return (this.currentTurn === 'white' && this.whitePlayer.startsWith('ai')) ||
+               (this.currentTurn === 'black' && this.blackPlayer.startsWith('ai'));
+    }
+    
+    getCurrentPlayerDifficulty() {
+        if (this.currentTurn === 'white') {
+            return this.getAIDifficulty(this.whitePlayer);
+        } else {
+            return this.getAIDifficulty(this.blackPlayer);
+        }
     }
     
     async triggerAIMove() {
@@ -557,6 +681,9 @@ class ChessGame {
         this.updateAIStatus();
         
         await new Promise(resolve => setTimeout(resolve, this.aiDelay));
+        
+        // Set difficulty for current player
+        this.ai.setDifficulty(this.getCurrentPlayerDifficulty());
         
         const move = this.ai.getBestMove(this, this.currentTurn);
         
@@ -955,6 +1082,14 @@ class ChessGame {
         
         this.board[toRow][toCol] = piece;
         this.board[fromRow][fromCol] = null;
+        
+        // Pawn promotion - promote to queen when reaching the last rank
+        if (piece.type === 'pawn') {
+            const promotionRow = piece.color === 'white' ? 0 : 7;
+            if (toRow === promotionRow) {
+                this.board[toRow][toCol] = { type: 'queen', color: piece.color };
+            }
+        }
         
         const moveNotation = this.getMoveNotation(fromRow, fromCol, toRow, toCol);
         this.moveHistory.push(moveNotation);
