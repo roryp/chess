@@ -6,40 +6,21 @@
 
 **[▶️ Play Now](https://roryp.github.io/cursor/)**
 
-A feature-rich, browser-based chess game with AI opponents, move validation, famous game replays, and a beautiful modern UI. Play against a friend, challenge the AI, or watch AI vs AI battles unfold!
+A feature-rich, browser-based chess game with move validation, famous game replays, and a beautiful modern UI. Play against a friend or watch legendary chess matches unfold!
 
 ---
 
 ## ✨ Features
 
-### 🎮 Game Modes
+### 🎮 Game Mode
 | Mode | Description |
 |------|-------------|
 | **Human vs Human** | Classic two-player chess on the same device |
-| **Human vs AI** | Challenge the AI as White or Black |
-| **AI vs Human** | Let the AI make the first move |
-| **AI vs AI** | Watch two AI players battle it out automatically |
-
-### 🤖 AI Player (Powered by Rules Engine)
-- **Adaptive Strategy Engine**: Pure code-based chess AI that adapts to board state
-- **Dynamic Strategy Selection**:
-  - 📖 **Opening**: Develop knights/bishops, control center, avoid early queen moves
-  - ⚔️ **Aggressive**: When behind in material - seek complications, attack, give checks
-  - 🛡️ **Consolidate**: When ahead in material - trade pieces, simplify, avoid risk
-  - 🏃 **Escape Check**: Prioritize king safety when in check
-  - 👑 **Endgame**: Push passed pawns, activate king, corner opponent king
-- **Smart Capture Logic**: MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
-- **Piece Safety Analysis**: Avoids moving pieces to undefended attacked squares
-- **Position Evaluation**: Piece-square tables for strategic positioning
-- **Check Detection**: Prioritizes check-giving moves
-- **Real-time Thinking**: Watch the AI think with detailed console logs
-- **Configurable Move Delay**: 100ms to 3000ms for comfortable viewing
-- **No LLM Required**: Fully functional without external services
 
 ### 🤝 Draw Detection
 - ✅ **Threefold Repetition** - Game ends when the same position occurs 3 times
 - ✅ **50-Move Rule** - Draw after 50 moves without pawn move or capture
-- ✅ **Move Limit** - Safety cap at 200 moves for AI vs AI games
+- ✅ **Move Limit** - Safety cap at 200 moves
 
 ### ♔ Chess Features
 - ✅ Full move validation for all pieces (King, Queen, Rook, Bishop, Knight, Pawn)
@@ -53,7 +34,7 @@ A feature-rich, browser-based chess game with AI opponents, move validation, fam
 - ✅ Move history with algebraic notation (e.g., `e2e4`)
 - ✅ Board flip to view from either player's perspective
 - ✅ Visual piece selection highlighting
-- ✅ Turn indicator with player type (👤 Human / 🤖 AI) and check status
+- ✅ Turn indicator with check status
 
 ### 🏆 Famous Games Library
 Replay legendary chess matches move-by-move:
@@ -63,7 +44,7 @@ Replay legendary chess matches move-by-move:
 | The Immortal Game | Anderssen vs Kieseritzky | 1851 | Brilliant sacrifices |
 | The Opera Game | Morphy vs Allies | 1858 | Perfect coordination |
 | Game of the Century | Fischer vs Byrne | 1956 | 13-year-old Fischer's masterpiece |
-| Deep Blue vs Kasparov | Deep Blue vs Kasparov | 1997 | Historic AI milestone |
+| Deep Blue vs Kasparov | Deep Blue vs Kasparov | 1997 | Historic computer chess milestone |
 | Kasparov's Immortal | Kasparov vs Topalov | 1999 | Sacrificial masterpiece |
 
 ---
@@ -98,13 +79,6 @@ npx serve
 3. **New Game**: Reset the board to starting position
 4. **Flip Board**: View the board from the opposite side
 
-### Setting Up AI Players
-1. Use the **AI Player Settings** panel at the top
-2. Set **White Player** to Human or AI
-3. Set **Black Player** to Human or AI
-4. Adjust **AI Move Delay** for comfortable viewing
-5. Click **New Game** to start with your settings
-
 ### Watching Famous Games
 1. Select a game from the **Famous Games** dropdown
 2. Click **Load Game** to start the replay
@@ -120,11 +94,6 @@ The main game board with all pieces in starting position:
 
 ![Chess board view](assets/chess-board.png)
 
-### AI Player Settings
-Configure Human vs AI, AI vs Human, or AI vs AI matches:
-
-![AI settings panel](assets/chess-ai-vs-ai.png)
-
 ### Famous Game Replay
 Watch historic games like "The Immortal Game" with play controls:
 
@@ -137,7 +106,7 @@ Watch historic games like "The Immortal Game" with play controls:
 ```
 chess/
 ├── index.html          # Main HTML file with game layout
-├── chess.js            # Game logic, Rules Engine AI, and event handling
+├── chess.js            # Game logic and event handling
 ├── chess.css           # Styling and animations
 ├── package.json        # Project metadata and dependencies
 ├── playwright.config.js # Test configuration
@@ -175,56 +144,15 @@ npx playwright show-report
 - ✅ Board flip functionality
 - ✅ Game reset
 - ✅ Famous games loading and replay
-- ✅ AI settings panel
-- ✅ AI player configuration
-- ✅ AI move generation
-- ✅ AI vs AI gameplay
-- ✅ Human move blocking during AI turn
 
 ---
 
 ## 🔧 Technical Details
 
-### AI Rules Engine Architecture
-The chess AI uses a **comprehensive rules engine** that adapts strategy based on board state:
-
-**1. Board State Analysis:**
-- Material count for both sides
-- Game phase detection (opening/middlegame/endgame)
-- King safety evaluation
-- Strategic mode selection
-
-**2. Strategic Modes:**
-| Mode | Trigger | Behavior |
-|------|---------|----------|
-| `develop` | Opening phase | Develop pieces, control center |
-| `aggressive` | Down 5+ material | Seek complications, attack |
-| `consolidate` | Up 5+ material | Trade pieces, simplify |
-| `escape_check` | King in check | Prioritize safety |
-| `endgame` | Low material | Push pawns, activate king |
-
-**3. Move Scoring Components:**
-- **Captures**: MVV-LVA scoring (Queen=900, Rook=500, etc.)
-- **Checks**: +800 bonus for check-giving moves
-- **Safety**: Penalize moves to attacked squares
-- **Position**: Piece-square table bonuses
-- **Development**: Bonus for piece development in opening
-
-**Piece Values:**
-| Piece | Value |
-|-------|-------|
-| Pawn | 100 |
-| Knight | 320 |
-| Bishop | 330 |
-| Rook | 500 |
-| Queen | 900 |
-| King | 20,000 |
-
 ### Technologies Used
 - **HTML5** - Semantic markup
 - **CSS3** - Modern styling with animations, gradients, and transitions
 - **Vanilla JavaScript** - No frameworks, pure ES6+
-- **Rules Engine** - Custom tactical/positional evaluation
 - **Playwright** - End-to-end testing
 
 ### Browser Support

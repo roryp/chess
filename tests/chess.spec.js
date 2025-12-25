@@ -146,173 +146,44 @@ test.describe('Chess Game', () => {
         await expect(knightOnF3).toBeVisible();
         await expect(knightOnF3).toHaveText('♘');
     });
-});
 
-test.describe('AI Player Features', () => {
-    test.beforeEach(async ({ page }) => {
-        await page.goto('/');
+    test('should not allow moving opponent pieces', async ({ page }) => {
+        // Try to click on a black pawn (it's white's turn)
+        const e7Square = page.locator('.square[data-row="1"][data-col="4"]');
+        await e7Square.click();
+        
+        // Square should NOT be selected
+        await expect(e7Square).not.toHaveClass(/selected/);
     });
 
-    test('should display AI settings panel', async ({ page }) => {
-        // Check AI settings panel exists
-        const aiSettings = page.locator('#ai-settings');
-        await expect(aiSettings).toBeVisible();
-        
-        // Check all player selectors exist
-        await expect(page.locator('#white-player')).toBeVisible();
-        await expect(page.locator('#black-player')).toBeVisible();
-        await expect(page.locator('#ai-delay')).toBeVisible();
-    });
-
-    test('should have correct default AI settings', async ({ page }) => {
-        // White player should default to human
-        const whitePlayer = page.locator('#white-player');
-        await expect(whitePlayer).toHaveValue('human');
-        
-        // Black player should default to human
-        const blackPlayer = page.locator('#black-player');
-        await expect(blackPlayer).toHaveValue('human');
-        
-        // Delay should default to 300
-        const delay = page.locator('#ai-delay');
-        await expect(delay).toHaveValue('300');
-    });
-
-    test('should update AI status when selecting AI for black', async ({ page }) => {
-        // Select AI for black player
-        const blackPlayer = page.locator('#black-player');
-        await blackPlayer.selectOption('ai');
-        
-        // AI status should update
-        const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI');
-        await expect(aiStatus).toContainText('Black');
-    });
-
-    test('should update AI status when selecting AI for white', async ({ page }) => {
-        // Select AI for white player
-        const whitePlayer = page.locator('#white-player');
-        await whitePlayer.selectOption('ai');
-        
-        // AI status should update
-        const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI');
-        await expect(aiStatus).toContainText('White');
-    });
-
-    test('should show AI vs AI mode status', async ({ page }) => {
-        // Select AI for both players
-        await page.locator('#white-player').selectOption('ai');
-        await page.locator('#black-player').selectOption('ai');
-        
-        // AI status should show AI vs AI mode
-        const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI');
-        await expect(aiStatus).toContainText('vs');
-    });
-
-    test('should show Phi-4 in AI status', async ({ page }) => {
-        // Select AI for white
-        await page.locator('#white-player').selectOption('ai');
-        
-        // Check status shows Phi-4
-        const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('Phi-4');
-    });
-
-    test('should allow changing AI move delay', async ({ page }) => {
-        const delay = page.locator('#ai-delay');
-        
-        // Clear and set new value
-        await delay.fill('1000');
-        await expect(delay).toHaveValue('1000');
-    });
-
-    test('AI should make a move when set as black after human moves', async ({ page }) => {
-        // Set black as AI with short delay for testing
-        await page.locator('#black-player').selectOption('ai');
-        await page.locator('#ai-delay').fill('100');
-        
-        // Make a move as white (human)
+    test('should deselect piece when clicking empty square', async ({ page }) => {
+        // Select a white pawn
         const e2Square = page.locator('.square[data-row="6"][data-col="4"]');
         await e2Square.click();
-        const e4Square = page.locator('.square[data-row="4"][data-col="4"]');
-        await e4Square.click();
+        await expect(e2Square).toHaveClass(/selected/);
         
-        // Wait for AI to make a move
-        await page.waitForTimeout(500);
+        // Click on an invalid empty square
+        const a3Square = page.locator('.square[data-row="5"][data-col="0"]');
+        await a3Square.click();
         
-        // Turn should be back to white (AI made its move)
-        const turnIndicator = page.locator('#current-turn');
-        await expect(turnIndicator).toContainText('White to move');
-        
-        // Move history should have at least 2 moves
-        const moveItems = page.locator('.move-item');
-        await expect(moveItems).toHaveCount(2);
-    });
-
-    test('AI vs AI game should make multiple moves', async ({ page }) => {
-        // Set both players as AI with short delay
-        await page.locator('#ai-delay').fill('100');
-        await page.locator('#white-player').selectOption('ai');
-        await page.locator('#black-player').selectOption('ai');
-        
-        // Wait for several moves
-        await page.waitForTimeout(2500);
-        
-        // Move history should have multiple moves (at least 2)
-        const moveItems = page.locator('.move-item');
-        const count = await moveItems.count();
-        expect(count).toBeGreaterThanOrEqual(2);
-    });
-
-    test('should not allow human moves during AI turn', async ({ page }) => {
-        // Set white as AI
-        await page.locator('#ai-delay').fill('2000'); // Long delay to test
-        await page.locator('#white-player').selectOption('ai');
-        
-        // Try to click on a piece immediately - should not select
-        const e2Square = page.locator('.square[data-row="6"][data-col="4"]');
-        await e2Square.click();
-        
-        // Square should NOT be selected because it's AI's turn
+        // Original square should be deselected
         await expect(e2Square).not.toHaveClass(/selected/);
     });
 
-    test('should reset AI game state on new game', async ({ page }) => {
-        // Set up AI vs AI game
-        await page.locator('#ai-delay').fill('100');
-        await page.locator('#white-player').selectOption('ai');
-        await page.locator('#black-player').selectOption('ai');
+    test('should allow pawn to move one square forward', async ({ page }) => {
+        // Click on e2 pawn
+        const e2Square = page.locator('.square[data-row="6"][data-col="4"]');
+        await e2Square.click();
         
-        // Wait for some moves (longer wait for LLM or fallback)
-        await page.waitForTimeout(3000);
+        // Click on e3 square (one square forward)
+        const e3Square = page.locator('.square[data-row="5"][data-col="4"]');
+        await e3Square.click();
         
-        // Reset the game
-        await page.locator('#reset-btn').click();
+        // Pawn should now be on e3
+        const pawnOnE3 = page.locator('.square[data-row="5"][data-col="4"] .piece');
+        await expect(pawnOnE3).toBeVisible();
         
-        // Wait a bit
-        await page.waitForTimeout(200);
-        
-        // Game should be running again with AI
-        const aiStatus = page.locator('#ai-status');
-        await expect(aiStatus).toContainText('AI');
-    });
-
-    test('turn indicator should show AI emoji when AI is playing', async ({ page }) => {
-        // Set black as AI
-        await page.locator('#black-player').selectOption('ai');
-        await page.locator('#ai-delay').fill('100');
-        
-        // Make a human move
-        await page.locator('.square[data-row="6"][data-col="4"]').click();
-        await page.locator('.square[data-row="4"][data-col="4"]').click();
-        
-        // Wait for AI move
-        await page.waitForTimeout(500);
-        
-        // Turn indicator for white (human) should show human emoji
-        const turnIndicator = page.locator('#current-turn');
-        await expect(turnIndicator).toContainText('👤');
+        // Turn should switch to black
+        await expect(page.locator('#current-turn')).toContainText('Black to move');
     });
 });
