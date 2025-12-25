@@ -18,6 +18,31 @@
             </div>
         </header>
         
+        <div class="ai-settings" id="ai-settings">
+            <h3>🤖 Player Settings</h3>
+            <div class="ai-options">
+                <div class="player-option">
+                    <label for="white-player">White:</label>
+                    <select id="white-player" class="player-select">
+                        <option value="human">👤 Human</option>
+                        <option value="ai">🤖 AI</option>
+                    </select>
+                </div>
+                <div class="player-option">
+                    <label for="black-player">Black:</label>
+                    <select id="black-player" class="player-select">
+                        <option value="human">👤 Human</option>
+                        <option value="ai" selected>🤖 AI</option>
+                    </select>
+                </div>
+                <div class="player-option">
+                    <label for="ai-delay">AI Delay (ms):</label>
+                    <input type="number" id="ai-delay" class="ai-delay-input" value="500" min="100" max="3000" step="100">
+                </div>
+            </div>
+            <div class="ai-status" id="ai-status">🤖 AI plays Black</div>
+        </div>
+        
         <div class="chess-board-container">
             <div class="board-labels left-labels">
                 <div class="label">8</div>

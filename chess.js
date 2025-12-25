@@ -1,4 +1,300 @@
-// Chess Game - Human vs Human with Famous Games Feature
+// Chess Game with Rules-Based AI Engine
+
+/**
+ * Rules-Based Chess AI Engine
+ * Uses strategic evaluation and tactical analysis to play chess
+ * No external services required - pure deterministic logic
+ */
+class ChessAI {
+    constructor() {
+        // Piece values for material evaluation
+        this.pieceValues = {
+            pawn: 100,
+            knight: 320,
+            bishop: 330,
+            rook: 500,
+            queen: 900,
+            king: 20000
+        };
+        
+        // Piece-square tables for positional evaluation
+        this.pawnTable = [
+            [0,  0,  0,  0,  0,  0,  0,  0],
+            [50, 50, 50, 50, 50, 50, 50, 50],
+            [10, 10, 20, 30, 30, 20, 10, 10],
+            [5,  5, 10, 25, 25, 10,  5,  5],
+            [0,  0,  0, 20, 20,  0,  0,  0],
+            [5, -5,-10,  0,  0,-10, -5,  5],
+            [5, 10, 10,-20,-20, 10, 10,  5],
+            [0,  0,  0,  0,  0,  0,  0,  0]
+        ];
+        
+        this.knightTable = [
+            [-50,-40,-30,-30,-30,-30,-40,-50],
+            [-40,-20,  0,  0,  0,  0,-20,-40],
+            [-30,  0, 10, 15, 15, 10,  0,-30],
+            [-30,  5, 15, 20, 20, 15,  5,-30],
+            [-30,  0, 15, 20, 20, 15,  0,-30],
+            [-30,  5, 10, 15, 15, 10,  5,-30],
+            [-40,-20,  0,  5,  5,  0,-20,-40],
+            [-50,-40,-30,-30,-30,-30,-40,-50]
+        ];
+        
+        this.bishopTable = [
+            [-20,-10,-10,-10,-10,-10,-10,-20],
+            [-10,  0,  0,  0,  0,  0,  0,-10],
+            [-10,  0,  5, 10, 10,  5,  0,-10],
+            [-10,  5,  5, 10, 10,  5,  5,-10],
+            [-10,  0, 10, 10, 10, 10,  0,-10],
+            [-10, 10, 10, 10, 10, 10, 10,-10],
+            [-10,  5,  0,  0,  0,  0,  5,-10],
+            [-20,-10,-10,-10,-10,-10,-10,-20]
+        ];
+        
+        this.rookTable = [
+            [0,  0,  0,  0,  0,  0,  0,  0],
+            [5, 10, 10, 10, 10, 10, 10,  5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [-5,  0,  0,  0,  0,  0,  0, -5],
+            [0,  0,  0,  5,  5,  0,  0,  0]
+        ];
+        
+        this.queenTable = [
+            [-20,-10,-10, -5, -5,-10,-10,-20],
+            [-10,  0,  0,  0,  0,  0,  0,-10],
+            [-10,  0,  5,  5,  5,  5,  0,-10],
+            [-5,  0,  5,  5,  5,  5,  0, -5],
+            [0,  0,  5,  5,  5,  5,  0, -5],
+            [-10,  5,  5,  5,  5,  5,  0,-10],
+            [-10,  0,  5,  0,  0,  0,  0,-10],
+            [-20,-10,-10, -5, -5,-10,-10,-20]
+        ];
+        
+        this.kingMiddleTable = [
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-30,-40,-40,-50,-50,-40,-40,-30],
+            [-20,-30,-30,-40,-40,-30,-30,-20],
+            [-10,-20,-20,-20,-20,-20,-20,-10],
+            [20, 20,  0,  0,  0,  0, 20, 20],
+            [20, 30, 10,  0,  0, 10, 30, 20]
+        ];
+    }
+    
+    /**
+     * Get all valid moves for a color
+     */
+    getAllValidMoves(game, color) {
+        const moves = [];
+        for (let fromRow = 0; fromRow < 8; fromRow++) {
+            for (let fromCol = 0; fromCol < 8; fromCol++) {
+                const piece = game.board[fromRow][fromCol];
+                if (piece && piece.color === color) {
+                    for (let toRow = 0; toRow < 8; toRow++) {
+                        for (let toCol = 0; toCol < 8; toCol++) {
+                            if (game.isValidMove(fromRow, fromCol, toRow, toCol) &&
+                                !game.wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol)) {
+                                moves.push({
+                                    fromRow, fromCol, toRow, toCol,
+                                    piece: piece,
+                                    captured: game.board[toRow][toCol]
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return moves;
+    }
+    
+    /**
+     * Evaluate material balance
+     */
+    getMaterialCount(game, color) {
+        let material = 0;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = game.board[row][col];
+                if (piece && piece.color === color) {
+                    material += this.pieceValues[piece.type];
+                }
+            }
+        }
+        return material;
+    }
+    
+    /**
+     * Get positional bonus for a piece
+     */
+    getPositionalBonus(piece, row, col, color) {
+        // Flip row for black pieces
+        const r = color === 'white' ? row : 7 - row;
+        
+        switch (piece.type) {
+            case 'pawn': return this.pawnTable[r][col];
+            case 'knight': return this.knightTable[r][col];
+            case 'bishop': return this.bishopTable[r][col];
+            case 'rook': return this.rookTable[r][col];
+            case 'queen': return this.queenTable[r][col];
+            case 'king': return this.kingMiddleTable[r][col];
+            default: return 0;
+        }
+    }
+    
+    /**
+     * Check if a square is attacked by opponent
+     */
+    isSquareAttackedBy(game, row, col, attackerColor) {
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const piece = game.board[r][c];
+                if (piece && piece.color === attackerColor) {
+                    if (game.canPieceAttack(r, c, row, col)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Check if move gives check
+     */
+    movesGivesCheck(game, move, opponentColor) {
+        // Simulate the move
+        const originalPiece = game.board[move.toRow][move.toCol];
+        game.board[move.toRow][move.toCol] = move.piece;
+        game.board[move.fromRow][move.fromCol] = null;
+        
+        const givesCheck = game.isInCheck(opponentColor);
+        
+        // Undo
+        game.board[move.fromRow][move.fromCol] = move.piece;
+        game.board[move.toRow][move.toCol] = originalPiece;
+        
+        return givesCheck;
+    }
+    
+    /**
+     * Determine game phase
+     */
+    getGamePhase(game) {
+        let totalMaterial = 0;
+        let pieceCount = 0;
+        
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = game.board[row][col];
+                if (piece && piece.type !== 'king' && piece.type !== 'pawn') {
+                    totalMaterial += this.pieceValues[piece.type];
+                    pieceCount++;
+                }
+            }
+        }
+        
+        if (pieceCount <= 4 || totalMaterial < 2000) return 'endgame';
+        if (game.moveHistory.length < 10) return 'opening';
+        return 'middlegame';
+    }
+    
+    /**
+     * Score a move based on multiple factors
+     */
+    scoreMove(game, move, color) {
+        let score = 0;
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        const phase = this.getGamePhase(game);
+        
+        // 1. Capture scoring (MVV-LVA)
+        if (move.captured) {
+            const victimValue = this.pieceValues[move.captured.type];
+            const attackerValue = this.pieceValues[move.piece.type];
+            score += victimValue * 10 - attackerValue;
+        }
+        
+        // 2. Check bonus
+        if (this.movesGivesCheck(game, move, opponentColor)) {
+            score += 500;
+        }
+        
+        // 3. Positional improvement
+        const oldPositional = this.getPositionalBonus(move.piece, move.fromRow, move.fromCol, color);
+        const newPositional = this.getPositionalBonus(move.piece, move.toRow, move.toCol, color);
+        score += (newPositional - oldPositional);
+        
+        // 4. Safety - penalize moving to attacked squares
+        if (this.isSquareAttackedBy(game, move.toRow, move.toCol, opponentColor)) {
+            // Moving to attacked square
+            if (!move.captured || this.pieceValues[move.captured.type] < this.pieceValues[move.piece.type]) {
+                score -= this.pieceValues[move.piece.type] / 2;
+            }
+        }
+        
+        // 5. Opening principles
+        if (phase === 'opening') {
+            // Develop knights and bishops early
+            if ((move.piece.type === 'knight' || move.piece.type === 'bishop') && 
+                (move.fromRow === 0 || move.fromRow === 7)) {
+                score += 50;
+            }
+            // Control center
+            if ((move.toRow === 3 || move.toRow === 4) && (move.toCol === 3 || move.toCol === 4)) {
+                score += 30;
+            }
+            // Don't move queen too early
+            if (move.piece.type === 'queen' && game.moveHistory.length < 6) {
+                score -= 30;
+            }
+        }
+        
+        // 6. Endgame - push passed pawns, activate king
+        if (phase === 'endgame') {
+            if (move.piece.type === 'pawn') {
+                // Bonus for advancing pawns in endgame
+                const advancement = color === 'white' ? (6 - move.toRow) : (move.toRow - 1);
+                score += advancement * 20;
+            }
+            if (move.piece.type === 'king') {
+                // King should be active in endgame
+                score += 20;
+            }
+        }
+        
+        return score;
+    }
+    
+    /**
+     * Get the best move using rules-based evaluation
+     */
+    getBestMove(game, color) {
+        const moves = this.getAllValidMoves(game, color);
+        
+        if (moves.length === 0) return null;
+        
+        // Score all moves
+        const scoredMoves = moves.map(move => ({
+            ...move,
+            score: this.scoreMove(game, move, color)
+        }));
+        
+        // Sort by score descending
+        scoredMoves.sort((a, b) => b.score - a.score);
+        
+        // Add some randomness among top moves to avoid repetitive play
+        const topMoves = scoredMoves.filter(m => m.score >= scoredMoves[0].score - 50);
+        const selectedMove = topMoves[Math.floor(Math.random() * Math.min(3, topMoves.length))];
+        
+        console.log(`🤖 AI evaluating ${moves.length} moves, best score: ${scoredMoves[0].score}`);
+        
+        return selectedMove;
+    }
+}
 
 class ChessGame {
     constructor() {
@@ -11,6 +307,13 @@ class ChessGame {
         this.famousGameMoveIndex = 0;
         this.isReplaying = false;
         this.gameOver = false;
+        
+        // AI Settings
+        this.ai = new ChessAI();
+        this.whitePlayer = 'human';  // 'human' or 'ai'
+        this.blackPlayer = 'ai';     // 'human' or 'ai' - default AI plays black
+        this.aiDelay = 500;          // Delay before AI moves (ms)
+        this.aiThinking = false;
         
         // Draw detection
         this.positionHistory = [];  // For threefold repetition
@@ -100,7 +403,101 @@ class ChessGame {
         this.setupPieces();
         this.renderBoard();
         this.setupEventListeners();
+        this.setupAIControls();
         this.updateTurnIndicator();
+    }
+    
+    setupAIControls() {
+        const whiteSelect = document.getElementById('white-player');
+        const blackSelect = document.getElementById('black-player');
+        const delayInput = document.getElementById('ai-delay');
+        
+        if (whiteSelect) {
+            whiteSelect.addEventListener('change', (e) => {
+                this.whitePlayer = e.target.value;
+                this.updateAIStatus();
+                this.checkAndTriggerAI();
+            });
+        }
+        
+        if (blackSelect) {
+            blackSelect.addEventListener('change', (e) => {
+                this.blackPlayer = e.target.value;
+                this.updateAIStatus();
+                this.checkAndTriggerAI();
+            });
+        }
+        
+        if (delayInput) {
+            delayInput.addEventListener('change', (e) => {
+                this.aiDelay = parseInt(e.target.value) || 500;
+            });
+        }
+        
+        this.updateAIStatus();
+    }
+    
+    isCurrentPlayerAI() {
+        return (this.currentTurn === 'white' && this.whitePlayer === 'ai') ||
+               (this.currentTurn === 'black' && this.blackPlayer === 'ai');
+    }
+    
+    updateAIStatus() {
+        const statusElement = document.getElementById('ai-status');
+        if (!statusElement) return;
+        
+        const whiteIsAI = this.whitePlayer === 'ai';
+        const blackIsAI = this.blackPlayer === 'ai';
+        
+        if (whiteIsAI && blackIsAI) {
+            statusElement.textContent = '🤖 AI vs AI - Watch the game!';
+            statusElement.className = 'ai-status ai-vs-ai';
+        } else if (whiteIsAI) {
+            statusElement.textContent = '🤖 AI plays White';
+            statusElement.className = 'ai-status ai-white';
+        } else if (blackIsAI) {
+            statusElement.textContent = '🤖 AI plays Black';
+            statusElement.className = 'ai-status ai-black';
+        } else {
+            statusElement.textContent = '👤 Human vs Human';
+            statusElement.className = 'ai-status human-vs-human';
+        }
+        
+        if (this.aiThinking) {
+            statusElement.textContent += ' (Thinking...)';
+        }
+    }
+    
+    checkAndTriggerAI() {
+        if (this.isReplaying || this.gameOver || this.aiThinking) return;
+        
+        if (this.isCurrentPlayerAI()) {
+            setTimeout(() => this.triggerAIMove(), 100);
+        }
+    }
+    
+    async triggerAIMove() {
+        if (this.aiThinking || this.isReplaying || this.gameOver) return;
+        
+        this.aiThinking = true;
+        this.updateAIStatus();
+        
+        await new Promise(resolve => setTimeout(resolve, this.aiDelay));
+        
+        const move = this.ai.getBestMove(this, this.currentTurn);
+        
+        if (move) {
+            this.makeMove(move.fromRow, move.fromCol, move.toRow, move.toCol);
+            this.renderBoard();
+        }
+        
+        this.aiThinking = false;
+        this.updateAIStatus();
+        
+        // Check if next player is also AI
+        if (this.isCurrentPlayerAI() && !this.gameOver) {
+            setTimeout(() => this.triggerAIMove(), 100);
+        }
     }
     
     createBoard() {
@@ -192,6 +589,8 @@ class ChessGame {
     handleSquareClick(row, col) {
         if (this.isReplaying) return;
         if (this.gameOver) return;
+        if (this.isCurrentPlayerAI()) return; // Block human input during AI turn
+        if (this.aiThinking) return;
         
         const piece = this.board[row][col];
         
@@ -204,6 +603,11 @@ class ChessGame {
                     this.makeMove(this.selectedSquare.row, this.selectedSquare.col, row, col);
                     this.selectedSquare = null;
                     this.renderBoard();
+                    
+                    // Trigger AI if next player is AI
+                    if (this.isCurrentPlayerAI() && !this.gameOver) {
+                        this.triggerAIMove();
+                    }
                     return;
                 }
             }
@@ -619,12 +1023,14 @@ class ChessGame {
         this.famousGameMoveIndex = 0;
         this.isReplaying = false;
         this.gameOver = false;
+        this.aiThinking = false;
         this.positionHistory = [];
         this.halfMoveClock = 0;
         this.setupPieces();
         this.renderBoard();
         this.updateMoveHistory();
         this.updateTurnIndicator();
+        this.updateAIStatus();
         this.hideFamousGameInfo();
         
         // Clear game status
@@ -632,6 +1038,9 @@ class ChessGame {
         if (statusElement) {
             statusElement.textContent = '';
         }
+        
+        // Trigger AI if it's their turn
+        this.checkAndTriggerAI();
     }
     
     flipBoard() {
